@@ -1,0 +1,35 @@
+schema_version: 1
+date: '2026-06-25'
+captured_at: '2026-06-25T19:53:28+05:30'
+repository:
+  path: /Users/mridultiwari/Documents/personal/DocLogs
+  branch: main
+git:
+  commits:
+  - hash: 976063e73fad817960f33e951fc6adf599c4d223
+    subject: Phase 0 completed
+    author: Mridul Tiwari
+    commited_at: '2026-06-25T13:09:56+05:30'
+  - hash: 83b2b3c3b7f0b3b016cb8a5ed868f7c48c79d84f
+    subject: update commands folder structure
+    author: Mridul Tiwari
+    commited_at: '2026-06-25T08:07:10+05:30'
+  - hash: d40a0fd341f1afaca20b846bd3bf430a24735981
+    subject: update with docs and prompts
+    author: Mridul Tiwari
+    commited_at: '2026-06-25T07:53:00+05:30'
+  - hash: 1e88daf7cca124c534710c167fe7c5d0d3afb847
+    subject: first commit
+    author: Mridul Tiwari
+    commited_at: '2026-06-25T07:43:51+05:30'
+  - hash: bfd4f49e7deac832eb1bf9de5e98a9cb674faf55
+    subject: first commit
+    author: Mridul Tiwari
+    commited_at: '2026-06-25T07:37:24+05:30'
+manual:
+  notes: 'Phase 1.2 git test
+
+    morning standup'
+evidence:
+  pr_titles: []
+  ticket_ids: []

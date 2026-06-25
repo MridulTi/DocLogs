@@ -1,6 +1,12 @@
 import typer
 from typing import *
 
+from helper.capture import build_capture_entry
+from helper.entry import save_entry
+from helper.git_collector import find_git_root
+
+
+
 
 def register(app: typer.Typer):
 
@@ -11,8 +17,10 @@ def register(app: typer.Typer):
     include_tickets: bool = typer.Option(False, help="Include optional ticket IDs or issue references."),
 ) -> None:
         """Capture today's engineering work into local DocLogs storage."""
-        typer.echo("📥 Capturing engineering activity...")
-        typer.echo(f"notes: {notes or 'no manual notes provided'}")
-        typer.echo(f"include_terminal: {include_terminal}")
-        typer.echo(f"include_tickets: {include_tickets}")
-        typer.echo("Captured evidence from git, PRs, and local context.")
+        if find_git_root() is None:
+            typer.echo("⚠️  Not inside a git repo — git evidence will be empty.")
+        entry = build_capture_entry(notes=notes)
+        path = save_entry(entry)
+        typer.echo(f"📥 Captured to {path}")
+        typer.echo(f"   branch: {entry.branch or 'n/a'}")
+        typer.echo(f"   commits today: {len(entry.commits)}")

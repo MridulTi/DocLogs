@@ -37,13 +37,25 @@ Append new entries at the bottom. Keep older entries—do not delete history.
 
 ---
 
-### 2026-06-25 — planned
+### 2026-06-25 — done
 
 **Area:** capture
 
-**Summary:** Phase 1.1 — define daily entry YAML schema
+**Summary:** Phase 1.1 — daily entry YAML schema
 
 **Details:**
-- Schema for `devlog/entries/YYYY-MM-DD.yaml`
-- Fields: date, git commits, branch, manual notes, captured_at
-- No git collector yet — schema + write empty/sample file first
+- Added `commands/entry.py`
+- `capture` writes `doclog/entries/YYYY-MM-DD.yaml`
+
+---
+
+### 2026-06-25 — in-progress
+
+**Area:** capture
+
+**Summary:** Phase 1.2 — git collector
+
+**Details:**
+- Added `commands/git_collector.py`
+- Fills repository path, branch, today's commits
+- Wired into `capture`

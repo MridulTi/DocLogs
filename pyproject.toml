@@ -22,4 +22,4 @@ py-modules = ["main"]
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["commands*"]
+include = ["commands*", "helper*"]
