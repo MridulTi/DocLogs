@@ -1,12 +1,12 @@
 # Vision
 
-DevLogs is an engineer-first knowledge operating system for turning day-to-day technical work into reusable career artifacts.
+DocLogs is an engineer-first knowledge operating system for turning day-to-day technical work into reusable career artifacts.
 
 ## Why this exists
 
 Engineering teams ship complex work every week: incident response, CI/CD improvements, infrastructure migrations, automation, and platform debugging. Most of this work is invisible later because it is stored in memory or scattered across commits, PRs, and issue trackers.
 
-DevLogs exists to capture that work automatically and make it easy to remember, review, and reuse.
+DocLogs exists to capture that work automatically and make it easy to remember, review, and reuse.
 
 ## Core mission
 

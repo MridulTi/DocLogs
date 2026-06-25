@@ -1,4 +1,4 @@
-# DevLogs LinkedIn Prompt Template
+# DocLogs LinkedIn Prompt Template
 
 Use this template to create a concise, professional LinkedIn update from an engineering story.
 

@@ -1,4 +1,4 @@
-# DevLogs Blog Prompt Template
+# DocLogs Blog Prompt Template
 
 Use this template to turn a captured engineering story into a high-quality markdown blog post.
 

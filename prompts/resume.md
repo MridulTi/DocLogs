@@ -1,4 +1,4 @@
-# DevLogs Resume Prompt Template
+# DocLogs Resume Prompt Template
 
 Use this template to convert a story into a strong resume or promotion bullet.
 

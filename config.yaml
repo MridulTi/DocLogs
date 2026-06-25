@@ -1,4 +1,4 @@
-# DevLogs configuration
+# DocLogs configuration
 
 llm:
   provider: openai

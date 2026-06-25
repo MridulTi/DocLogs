@@ -10,7 +10,7 @@ def register(app: typer.Typer):
     include_terminal: bool = typer.Option(False, help="Include optional terminal history evidence."),
     include_tickets: bool = typer.Option(False, help="Include optional ticket IDs or issue references."),
 ) -> None:
-        """Capture today's engineering work into local DevLogs storage."""
+        """Capture today's engineering work into local DocLogs storage."""
         typer.echo("📥 Capturing engineering activity...")
         typer.echo(f"notes: {notes or 'no manual notes provided'}")
         typer.echo(f"include_terminal: {include_terminal}")

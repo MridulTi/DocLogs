@@ -1,6 +1,6 @@
 # Architecture
 
-DevLogs is designed as a local operating system for engineering accomplishments, with a lightweight CLI capturing evidence and a model-agnostic generation layer.
+DocLogs is designed as a local operating system for engineering accomplishments, with a lightweight CLI capturing evidence and a model-agnostic generation layer.
 
 ## High-level flow
 
@@ -55,7 +55,7 @@ The CLI should route generation through an adapter layer and never hard-code a s
 
 ## Sanitization layer
 
-Before any text is sent to a model, DevLogs should:
+Before any text is sent to a model, DocLogs should:
 
 - remove or redact company names and internal hostnames
 - strip internal URLs and private IP addresses
@@ -67,7 +67,7 @@ This protects the user from accidentally sending private infrastructure details 
 
 ## Scheduler separation
 
-DevLogs is a capture tool, not a scheduler.
+DocLogs is a capture tool, not a scheduler.
 
 - The CLI should provide a `remind` or `capture` command, but not own timed execution.
 - Users can integrate with OS-level schedulers like `cron`, `systemd --user`, `launchd`, or Windows Task Scheduler.

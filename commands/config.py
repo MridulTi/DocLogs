@@ -1,7 +1,9 @@
 import typer
 from typing import *
+from pathlib import Path
+import yaml
 
-CONFIG_FILE = Path(__file__).parent.parent /("config.yaml")
+CONFIG_FILE = Path(__file__).resolve().parent.parent/("config.yaml")
 
 
 def load_config(path: Path = CONFIG_FILE) -> dict[str, object]:
@@ -15,8 +17,8 @@ def register(app: typer.Typer):
 
     @app.command("config", help="run workflows")
     def config(path: Optional[Path] = typer.Option(None, "-c", "--config", help="Path to the config file.")) -> None:
-        """Print the active DevLogs configuration."""
+        """Print the active DocLogs configuration."""
         config_path = path or CONFIG_FILE
         config = load_config(config_path)
-        typer.echo("Active DevLogs configuration:")
+        typer.echo("Active DocLogs configuration:")
         typer.echo(config)

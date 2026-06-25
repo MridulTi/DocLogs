@@ -1,6 +1,11 @@
-# Copilot Repository Instructions
+---
+description: Core repository instructions for DocLogs — read docs first, preserve CLI and model-agnostic design
+alwaysApply: true
+---
 
-This repository is for the DocLogs CLI and documentation. When reviewing or editing this repository, follow these rules:
+# Cursor Repository Instructions
+
+This repository is for the DocLogs CLI and documentation. When working in this repository, follow these rules:
 
 1. Always read existing repository files first, especially markdown docs under `docs/`, before suggesting changes.
 2. Treat `README.md`, `docs/vision.md`, and `docs/architecture.md` as the source of truth for product direction.
@@ -8,3 +13,4 @@ This repository is for the DocLogs CLI and documentation. When reviewing or edit
 4. Do not assume the project is a blog generator. The core product is knowledge capture, weekly review, and artifact generation.
 5. Prefer changes that preserve a minimal command-line UX and a model-agnostic design.
 6. If asked to implement features, prioritize documentation and repo structure before building command-line code.
+7. When the user invokes the **DocLogs** skill, read `.cursor/skills/doclogs/changes.md` for full project change context and follow suggest-only mode—propose code for the user to apply; do not edit files unless the user explicitly overrides that skill.

@@ -1,12 +1,12 @@
-# DevLogs
+# DocLogs
 
-DevLogs is an engineer career operating system for capturing and reusing technical work.
+DocLogs is an engineer career operating system for capturing and reusing technical work.
 
 ## What it solves
 
 Engineers do valuable work every day: incident response, CI/CD and platform debugging, automation, infrastructure changes, PR reviews, and migrations. Most of that work is forgotten when it matters most: performance reviews, promotion packets, interviews, and professional storytelling.
 
-DevLogs helps you turn day-to-day engineering activity into durable artifacts by:
+DocLogs helps you turn day-to-day engineering activity into durable artifacts by:
 
 - capturing evidence automatically from git, branches, PRs, and optional histories
 - summarizing weekly progress and surfacing strong stories
@@ -52,7 +52,7 @@ DevLogs helps you turn day-to-day engineering activity into durable artifacts by
 
 ## Architecture overview
 
-DevLogs keeps the capture layer local and the generation layer model-agnostic. It is intentionally not a scheduler; use OS-level schedulers like `cron`, `systemd --user`, `launchd`, or Task Scheduler to invoke `devlog capture` at reminder times.
+DocLogs keeps the capture layer local and the generation layer model-agnostic. It is intentionally not a scheduler; use OS-level schedulers like `cron`, `systemd --user`, `launchd`, or Task Scheduler to invoke `devlog capture` at reminder times.
 
 For implementation, start by focusing on:
 
