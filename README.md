@@ -33,6 +33,9 @@ DevLogs helps you turn day-to-day engineering activity into durable artifacts by
 ./
 ├── README.md
 ├── config.yaml
+├── commands/
+│   ├── capture.py
+│   └── config.py
 ├── docs/
 │   ├── vision.md
 │   └── architecture.md

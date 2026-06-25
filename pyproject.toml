@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "devlogs"
+version = "0.1.0"
+description = "Engineer career operating system for capturing and generating reusable engineering artifacts."
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [{name = "Mridul Ti"}]
+dependencies = [
+  "typer[all]>=0.10.0",
+  "PyYAML>=6.0",
+]
+
+[project.scripts]
+devlog = "main:app"
