@@ -1,0 +1,20 @@
+# DevLogs configuration
+
+llm:
+  provider: openai
+
+openai:
+  model: gpt-4o-mini
+  api_key: "${OPENAI_API_KEY}"
+
+ollama:
+  endpoint: http://127.0.0.1:11434
+  model: "local-llm"
+
+anthropic:
+  model: claude-3
+  api_key: "${ANTHROPIC_API_KEY}"
+
+gemini:
+  model: gemini-pro
+  api_key: "${GEMINI_API_KEY}"
