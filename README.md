@@ -15,15 +15,15 @@ DocLogs helps you turn day-to-day engineering activity into durable artifacts by
 
 ## Core commands
 
-- `devlog capture`
+- `doclog capture`
   - collect commits, repository activity, PR titles, tickets, and optional notes
   - store structured daily entries in local storage
-- `devlog weekly`
+- `doclog weekly`
   - review weekly work
   - surface candidate stories worth expanding
-- `devlog generate <type>`
+- `doclog generate <type>`
   - create reusable artifacts such as `blog`, `linkedin`, `resume`, `interview`, or `changelog`
-- `devlog sanitize`
+- `doclog sanitize`
   - sanitize captured content before any LLM request
   - redact internal URLs, tokens, IP addresses, and other sensitive details
 
@@ -39,7 +39,7 @@ DocLogs helps you turn day-to-day engineering activity into durable artifacts by
 ├── docs/
 │   ├── vision.md
 │   └── architecture.md
-├── devlog/
+├── doclog/
 │   ├── entries/
 │   ├── posts/
 │   └── cache/
@@ -52,7 +52,7 @@ DocLogs helps you turn day-to-day engineering activity into durable artifacts by
 
 ## Architecture overview
 
-DocLogs keeps the capture layer local and the generation layer model-agnostic. It is intentionally not a scheduler; use OS-level schedulers like `cron`, `systemd --user`, `launchd`, or Task Scheduler to invoke `devlog capture` at reminder times.
+DocLogs keeps the capture layer local and the generation layer model-agnostic. It is intentionally not a scheduler; use OS-level schedulers like `cron`, `systemd --user`, `launchd`, or Task Scheduler to invoke `doclog capture` at reminder times.
 
 For implementation, start by focusing on:
 
@@ -64,5 +64,5 @@ For implementation, start by focusing on:
 ## Getting started
 
 1. Configure `config.yaml` with your preferred LLM provider.
-2. Add a scheduler entry outside the CLI to invoke `devlog capture` at your preferred check-in time.
+2. Add a scheduler entry outside the CLI to invoke `doclog capture` at your preferred check-in time.
 3. Capture daily progress and generate reusable career artifacts from the same captured story.

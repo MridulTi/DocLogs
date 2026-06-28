@@ -16,7 +16,7 @@ def register(app: typer.Typer):
         else:
             entry = load_entry(entry_path_for())
             if not entry:
-                typer.echo("No capture for today. Run: docklog capture")
+                typer.echo("No capture for today. Run: doclog capture")
                 raise typer.Exit(code=1)
             text = text_from_entry(entry)
         sanitized, findings, flags = sanitize_with_review(text)

@@ -22,18 +22,18 @@ Append new entries at the bottom. Keep older entries—do not delete history.
 
 **Area:** cli
 
-**Summary:** Phase 0 complete — `docklog` runs end to end
+**Summary:** Phase 0 complete — `doclog` runs end to end
 
 **Details:**
 - 0.1 Fixed `main.py`: `importlib`, `COMMANDS_DIR` via `.resolve().parent`
 - 0.2 Fixed `commands/config.py`: added `import yaml`
 - 0.3 Updated `requirements.txt`: added PyYAML (optional: remove `pathlib`, `typing`)
 - 0.4 Configured `pyproject.toml`: setuptools `py-modules` + `commands` package discovery
-- 0.5 Created `devlog/entries/`, `devlog/posts/`, `devlog/cache/` with `.gitkeep`
-- 0.6 Verified `pip install -e .` and `docklog --help`
+- 0.5 Created `doclog/entries/`, `doclog/posts/`, `doclog/cache/` with `.gitkeep`
+- 0.6 Verified `pip install -e .` and `doclog --help`
 - 0.7 Smoke-tested: capture, weekly, generate, sanitize, config — all pass
 
-**Files touched:** `main.py`, `commands/config.py`, `requirements.txt`, `pyproject.toml`, `.gitignore`, `devlog/**/.gitkeep`
+**Files touched:** `main.py`, `commands/config.py`, `requirements.txt`, `pyproject.toml`, `.gitignore`, `doclog/**/.gitkeep`
 
 ---
 

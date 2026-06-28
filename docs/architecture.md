@@ -4,27 +4,27 @@ DocLogs is designed as a local operating system for engineering accomplishments,
 
 ## High-level flow
 
-1. `devlog capture`
+1. `doclog capture`
    - collects local evidence from git, branches, PRs, and optionally terminal history or ticket IDs
-   - stores daily entries in structured files under `devlog/entries`
-2. `devlog weekly`
+   - stores daily entries in structured files under `doclog/entries`
+2. `doclog weekly`
    - summarizes recent updates and surfaces candidate stories
    - helps the user pick what to expand into a durable artifact
-3. `devlog generate <type>`
+3. `doclog generate <type>`
    - asks a few targeted questions about the chosen story
    - produces Markdown artifacts such as `posts/*.md`, `linkedin.md`, and `resume_bullet.md`
-4. `devlog sanitize`
+4. `doclog sanitize`
    - applies a safety filter before any LLM call
    - removes internal URLs, secrets, account IDs, IP addresses, and customer data
    - flags suspicious content for review rather than sending it blindly
 
 ## Storage layout
 
-- `devlog/entries/`
+- `doclog/entries/`
   - daily capture files, e.g. `2026-06-21.yaml`
-- `devlog/posts/`
+- `doclog/posts/`
   - generated markdown artifacts for stories
-- `devlog/cache/`
+- `doclog/cache/`
   - temporary state, extracted metadata, or API caches
 - `config.yaml`
   - user-configurable provider and prompt defaults
@@ -82,7 +82,7 @@ DocLogs is a capture tool, not a scheduler.
 ├── docs/
 │   ├── vision.md
 │   └── architecture.md
-├── devlog/
+├── doclog/
 │   ├── entries/
 │   ├── posts/
 │   ├── cache/

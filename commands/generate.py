@@ -21,17 +21,17 @@ def register(app: typer.Typer):
     @app.command("generate", help="Generate a reusable artifact from a captured story.")
     def generate(
         artifact_type: str = typer.Argument(..., help="blog, linkedin, resume, interview, changelog"),
-        title: Optional[str] = typer.Option(None, "-t", "--title", help="Story title from docklog weekly."),
+        title: Optional[str] = typer.Option(None, "-t", "--title", help="Story title from doclog weekly."),
         days: int = typer.Option(7, help="Days back to search for the story."),
     ) -> None:
         if not title:
-            typer.echo("Pass a story title: docklog generate blog -t \"Phase 0 completed\"")
+            typer.echo("Pass a story title: doclog generate blog -t \"Phase 0 completed\"")
             raise typer.Exit(code=1)
 
         story = find_story_text(title, days=days)
         if not story:
             typer.echo(f"Story not found: {title!r}")
-            typer.echo("Run docklog weekly to see available titles.")
+            typer.echo("Run doclog weekly to see available titles.")
             raise typer.Exit(code=1)
 
         prompt, findings, flags = build_prompt(artifact_type, story)

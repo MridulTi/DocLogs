@@ -15,7 +15,7 @@ dependencies = [
 ]
 
 [project.scripts]
-docklog = "main:app"
+doclog = "main:app"
 
 [tool.setuptools]
 py-modules = ["main"]

@@ -15,7 +15,7 @@ def register(app: typer.Typer):
         entries = load_entries_for_days(days)
         if not entries:
             typer.echo(f"📅 No captures found in the last {days} days.")
-            typer.echo('Run: docklog capture --notes "what you worked on today"')
+            typer.echo('Run: doclog capture --notes "what you worked on today"')
             return
         typer.echo(f"📅 Weekly summary ({len(entries)} day(s) captured)")
         candidates = build_story_candidates(entries, limit=limit)

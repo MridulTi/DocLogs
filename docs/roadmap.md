@@ -10,23 +10,23 @@ Phases and todos for building the DocLogs CLI. Update checkboxes as work complet
 
 ## Phase 0 — Fix the skeleton ✅
 
-**Goal:** `docklog --help` works; all five commands run without crashing.
+**Goal:** `doclog --help` works; all five commands run without crashing.
 
 | # | Task | Status |
 |---|------|--------|
 | 0.1 | Fix `main.py` — `importlib`, `COMMANDS_DIR` via `.resolve().parent` | ✅ |
 | 0.2 | Fix `commands/config.py` — add `import yaml` | ✅ |
 | 0.3 | Fix `requirements.txt` — add PyYAML; remove `pathlib`, `typing` backports | ⬜ optional |
-| 0.4 | Configure `pyproject.toml` — setuptools packages + `docklog` entry point | ✅ |
+| 0.4 | Configure `pyproject.toml` — setuptools packages + `doclog` entry point | ✅ |
 | 0.5 | Create storage dirs — `doclog/entries/`, `doclog/posts/`, `doclog/cache/` + `.gitkeep` | ✅ |
-| 0.6 | Install & verify — `pip install -e .`, `docklog --help` | ✅ |
+| 0.6 | Install & verify — `pip install -e .`, `doclog --help` | ✅ |
 | 0.7 | Smoke-test all commands — capture, weekly, generate, sanitize, config | ✅ |
 
 ---
 
 ## Phase 1 — Capture ✅
 
-**Goal:** `docklog capture` writes a real daily YAML file with git evidence; re-runs merge instead of wipe.
+**Goal:** `doclog capture` writes a real daily YAML file with git evidence; re-runs merge instead of wipe.
 
 | # | Task | Status |
 |---|------|--------|
@@ -46,7 +46,7 @@ Phases and todos for building the DocLogs CLI. Update checkboxes as work complet
 
 ## Phase 2 — Weekly review
 
-**Goal:** `docklog weekly` reads real entries and surfaces story candidates (no hardcoded stubs).
+**Goal:** `doclog weekly` reads real entries and surfaces story candidates (no hardcoded stubs).
 
 | # | Task | Status |
 |---|------|--------|
@@ -72,7 +72,7 @@ Phases and todos for building the DocLogs CLI. Update checkboxes as work complet
 
 ## Phase 4 — Generate
 
-**Goal:** `docklog generate <type>` produces markdown artifacts from captured stories.
+**Goal:** `doclog generate <type>` produces markdown artifacts from captured stories.
 
 | # | Task | Status |
 |---|------|--------|
@@ -90,11 +90,11 @@ Phases and todos for building the DocLogs CLI. Update checkboxes as work complet
 
 | # | Task | Status |
 |---|------|--------|
-| 5.1 | `docklog config show|set` improvements | ⬜ |
+| 5.1 | `doclog config show|set` improvements | ⬜ |
 | 5.2 | Scheduler docs — cron / launchd examples (no built-in scheduler) | ⬜ |
 | 5.3 | Tests — sanitize, YAML I/O, git collector | ⬜ |
 | 5.4 | README walkthrough with real `capture → weekly → generate` flow | ⬜ |
-| 5.5 | Align naming — `doclog/` vs `devlog/` in docs and `.gitignore` | ⬜ |
+| 5.5 | Clean up duplicate imports in `helper/entry.py` | ⬜ |
 | 5.6 | Clean up duplicate imports in `helper/entry.py` | ⬜ |
 
 ---
