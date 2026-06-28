@@ -5,21 +5,43 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "doclogs"
 version = "0.1.0"
-description = "Engineer career operating system for capturing and generating reusable engineering artifacts."
+description = "CLI for capturing engineering work and turning it into career artifacts."
 readme = "README.md"
+license = "MIT"
 requires-python = ">=3.11"
-authors = [{name = "Mridul Ti"}]
+authors = [{ name = "Mridul Tiwari" }]
+keywords = ["cli", "engineering", "career", "devlog", "documentation", "resume"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Environment :: Console",
+  "Intended Audience :: Developers",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Software Development :: Documentation",
+  "Topic :: Utilities",
+]
 dependencies = [
-  "typer[all]>=0.10.0",
+  "typer>=0.10.0",
   "PyYAML>=6.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/MridulTi/DocLogs"
+Repository = "https://github.com/MridulTi/DocLogs"
+Issues = "https://github.com/MridulTi/DocLogs/issues"
 
 [project.scripts]
 doclog = "main:app"
 
 [tool.setuptools]
 py-modules = ["main"]
+include-package-data = true
 
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["commands*", "helper*"]
+
+[tool.setuptools.package-data]
+helper = ["templates/*.md", "templates/config.yaml"]

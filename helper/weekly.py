@@ -3,7 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date, timedelta
 
-from helper.entry import ENTRIES_DIR, DailyEntry, load_entry
+from helper.entry import DailyEntry, load_entry
+from helper.paths import entries_dir
 from helper.task_notes import DETAILS_LATER, extract_worked_on, parse_task_blocks
 
 
@@ -19,7 +20,7 @@ def load_entries_for_days(days: int = 7) -> list[DailyEntry]:
     today = date.today()
     for offset in range(days):
         day = today - timedelta(days=offset)
-        path = ENTRIES_DIR / f"{day.isoformat()}.yaml"
+        path = entries_dir() / f"{day.isoformat()}.yaml"
         entry = load_entry(path)
         if entry:
             entries.append(entry)

@@ -63,6 +63,48 @@ For implementation, start by focusing on:
 
 ## Getting started
 
-1. Configure `config.yaml` with your preferred LLM provider.
+### Install from PyPI
+
+```bash
+pip install doclogs
+doclog --help
+```
+
+### Install from source (development)
+
+```bash
+git clone https://github.com/MridulTi/DocLogs.git
+cd DocLogs
+python -m venv .venv
+source .venv/bin/activate
+pip install -e .
+doclog --help
+```
+
+### First run
+
+Data is stored under `~/.doclog/` (entries, posts, config). On first use, a default `config.yaml` is created there.
+
+To keep using a project-local folder instead:
+
+```bash
+export DOCLOG_HOME="$PWD/doclog"
+doclog capture
+```
+
+### Daily use
+
+1. Configure `~/.doclog/config.yaml` with your preferred LLM provider (created automatically on first run).
 2. Add a scheduler entry outside the CLI to invoke `doclog capture` at your preferred check-in time.
 3. Capture daily progress and generate reusable career artifacts from the same captured story.
+
+## Publish to PyPI (maintainers)
+
+```bash
+pip install build twine
+python -m build
+twine check dist/*
+twine upload dist/*
+```
+
+Create a PyPI account and API token at https://pypi.org before uploading.

@@ -6,8 +6,7 @@ import yaml
 from dataclasses import dataclass, field, asdict
 from datetime import date, timezone, datetime, timedelta
 
-ENTRIES_DIR = Path(__file__).resolve().parent.parent / "doclog" / "entries"
-SCHEMA_VERSION = 1
+from helper.paths import entries_dir
 
 
 @dataclass
@@ -32,7 +31,7 @@ class DailyEntry:
 
 def entry_path_for(day:date | None = None) -> Path:
     day = day or date.today()
-    return ENTRIES_DIR / f"{day.isoformat()}.yaml"
+    return entries_dir() / f"{day.isoformat()}.yaml"
 
 def new_empty_entry(notes: str | None = None) -> DailyEntry:
     IST = timezone(timedelta(hours=5, minutes=30))

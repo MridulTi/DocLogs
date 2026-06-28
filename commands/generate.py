@@ -1,13 +1,11 @@
 import re
-from pathlib import Path
 
 import typer
 from typing import Optional
 
 from helper.generate import build_prompt
+from helper.paths import posts_dir
 from helper.story import find_story_text
-
-POSTS_DIR = Path(__file__).resolve().parent.parent / "doclog" / "posts"
 
 
 def slugify(text: str) -> str:
@@ -41,8 +39,9 @@ def register(app: typer.Typer):
             for flag in flags:
                 typer.echo(f"  - [{flag.kind}] {flag.matched[:60]}")
 
-        POSTS_DIR.mkdir(parents=True, exist_ok=True)
-        out = POSTS_DIR / f"{slugify(title)}-{artifact_type}.md"
+        output_dir = posts_dir()
+        output_dir.mkdir(parents=True, exist_ok=True)
+        out = output_dir / f"{slugify(title)}-{artifact_type}.md"
         out.write_text(prompt, encoding="utf-8")
 
         typer.echo(f"✨ Prompt saved to {out}")
