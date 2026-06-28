@@ -1,12 +1,14 @@
 from __future__ import annotations
-from dataclasses import dataclass
-import datetime
-from pathlib import Path
-import yaml
 from dataclasses import dataclass, field, asdict
 from datetime import date, timezone, datetime, timedelta
+from pathlib import Path
+from typing import Any
+
+import yaml
 
 from helper.paths import entries_dir
+
+SCHEMA_VERSION = 1
 
 
 @dataclass
