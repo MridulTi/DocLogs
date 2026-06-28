@@ -176,12 +176,12 @@ pyrightconfig.json
 # End of https://www.toptal.com/developers/gitignore/api/python
 
 # Local DocLogs data (keep directory structure via .gitkeep)
-devlog/entries/*
-!devlog/entries/.gitkeep
-devlog/posts/*
-!devlog/posts/.gitkeep
-devlog/cache/*
-!devlog/cache/.gitkeep
+doclog/entries/*
+!doclog/entries/.gitkeep
+doclog/posts/*
+!doclog/posts/.gitkeep
+doclog/cache/*
+!doclog/cache/.gitkeep
 # Python
 .venv/
 __pycache__/
