@@ -1,9 +1,10 @@
 from __future__ import annotations
-from typing import *
 
 from dataclasses import dataclass
-from helper.entry import ENTRIES_DIR, DailyEntry, load_entry
 from datetime import date, timedelta
+
+from helper.entry import ENTRIES_DIR, DailyEntry, load_entry
+from helper.task_notes import DETAILS_LATER, extract_worked_on, parse_task_blocks
 
 
 @dataclass
@@ -12,9 +13,10 @@ class StoryCandidate:
     source: str
     date: str
 
-def load_entries_for_days(days: int = 7)-> list[DailyEntry]:
+
+def load_entries_for_days(days: int = 7) -> list[DailyEntry]:
     entries: list[DailyEntry] = []
-    today=date.today()
+    today = date.today()
     for offset in range(days):
         day = today - timedelta(days=offset)
         path = ENTRIES_DIR / f"{day.isoformat()}.yaml"
@@ -24,30 +26,38 @@ def load_entries_for_days(days: int = 7)-> list[DailyEntry]:
     return entries
 
 
-def build_story_candidates(entries: list[DailyEntry] | None = None,limit: int = 5)-> list[StoryCandidate]:
-    candidates: list[StoryCandidate] =[]
+def build_story_candidates(
+    entries: list[DailyEntry] | None = None,
+    limit: int = 5,
+) -> list[StoryCandidate]:
+    candidates: list[StoryCandidate] = []
     seen: set[str] = set()
 
-    for entry in entries:
+    for entry in entries or []:
         for commit in entry.commits:
             title = commit.subject.strip()
             key = title.lower()
-
             if title and key not in seen:
                 seen.add(key)
-                candidates.append(StoryCandidate(
-                    title,
-                    source="commit",
-                    date=entry.date
-                ))
-        if entry.notes:
-            for line in entry.notes.splitlines():
-                title = line.strip()
-                key = title.lower()
-                if title and key not in seen:
-                    seen.add(key)
-                    candidates.append(StoryCandidate(title,"notes",entry.date))
+                candidates.append(
+                    StoryCandidate(title=title, source="commit", date=entry.date)
+                )
+
+        for block in parse_task_blocks(entry.notes):
+            title = extract_worked_on(block)
+            if not title:
+                continue
+            key = title.lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            if DETAILS_LATER in block:
+                title = f"{title} [incomplete]"
+            candidates.append(
+                StoryCandidate(title=title, source="task", date=entry.date)
+            )
 
         if len(candidates) >= limit:
             break
+
     return candidates[:limit]

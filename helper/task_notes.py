@@ -5,28 +5,31 @@ import re
 DETAILS_LATER = "status: details_later"
 
 
+def parse_task_blocks(notes: str | None) -> list[str]:
+    """Split manual notes into task blocks (legacy block + ### Task N sections)."""
+    if not notes or not notes.strip():
+        return []
+    blocks = re.split(r"(?=### Task \d+)", notes.strip())
+    return [block.strip() for block in blocks if block.strip()]
+
+
+def extract_worked_on(block: str) -> str | None:
+    return _extract_worked_on(block)
+
+
 def list_incomplete_tasks(notes: str | None) -> list[tuple[int, str]]:
     if not notes:
         return []
 
     results: list[tuple[int, str]] = []
 
-    # Structured tasks: ### Task 2, ### Task 3, ...
-    blocks = re.split(r"(?=### Task \d+)", notes)
-    for block in blocks:
+    for block in parse_task_blocks(notes):
         if DETAILS_LATER not in block:
             continue
         match = re.search(r"### Task (\d+)", block)
-        if not match:
-            continue
-        task_num = int(match.group(1))
-        summary = _extract_worked_on(block) or f"Task {task_num}"
+        task_num = int(match.group(1)) if match else 0
+        summary = _extract_worked_on(block) or (f"Task {task_num}" if task_num else "Incomplete entry")
         results.append((task_num, summary))
-
-    # Legacy / headerless stub (whole pre-task notes block)
-    if DETAILS_LATER in notes and not results:
-        summary = _extract_worked_on(notes) or "Incomplete entry"
-        results.append((0, summary))  # 0 = no task number
 
     return results
 
