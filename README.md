@@ -98,13 +98,18 @@ doclog capture
 2. Add a scheduler entry outside the CLI to invoke `doclog capture` at your preferred check-in time.
 3. Capture daily progress and generate reusable career artifacts from the same captured story.
 
-## Publish to PyPI (maintainers)
+## Publish to PyPI (GitHub Actions)
+
+Publishing runs via GitHub Actions — no local `twine upload` needed.
+
+1. Configure [trusted publishing](docs/publishing.md) on PyPI + GitHub environment `pypi`
+2. Tag and create a GitHub Release:
 
 ```bash
-pip install build twine
-python -m build
-twine check dist/*
-twine upload dist/*
+git tag v0.1.0
+git push origin v0.1.0
 ```
 
-Create a PyPI account and API token at https://pypi.org before uploading.
+3. GitHub → **Releases** → publish release → workflow uploads to PyPI
+
+See [docs/publishing.md](docs/publishing.md) for full setup.
