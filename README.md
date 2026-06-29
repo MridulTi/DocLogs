@@ -13,6 +13,8 @@ DocLogs helps you turn day-to-day engineering activity into durable artifacts by
 - generating markdown artifacts for blog posts, LinkedIn, resumes, and interview prep
 - keeping model usage provider-agnostic and safe with sanitization
 
+Use `--syntax` on any command for usage, options, and examples (e.g. `doclog generate --syntax`). Standard `--help` is also available.
+
 ## Core commands
 
 - `doclog capture`
@@ -23,9 +25,14 @@ DocLogs helps you turn day-to-day engineering activity into durable artifacts by
   - surface candidate stories worth expanding
 - `doclog generate <type>`
   - create reusable artifacts such as `blog`, `linkedin`, `resume`, `interview`, or `changelog`
+  - default: saves a sanitized prompt file for manual use in Cursor or Copilot
+  - optional: auto-generate via logged-in Cursor CLI or GitHub Copilot CLI
 - `doclog sanitize`
   - sanitize captured content before any LLM request
   - redact internal URLs, tokens, IP addresses, and other sensitive details
+- `doclog publish`
+  - configure a git repo for publishing generated posts
+  - commit and push a post to that repo
 
 ## Recommended repository structure
 
@@ -59,7 +66,7 @@ For implementation, start by focusing on:
 1. evidence collection and local storage
 2. weekly summaries and story selection
 3. safe prompt generation
-4. provider adapters for OpenAI, Ollama, Anthropic, Gemini, or other APIs
+4. provider adapters for IDE CLIs (Cursor, Copilot) and optional API providers
 
 ## Getting started
 
@@ -94,9 +101,49 @@ doclog capture
 
 ### Daily use
 
-1. Configure `~/.doclog/config.yaml` with your preferred LLM provider (created automatically on first run).
+1. Configure `~/.doclog/config.yaml` (created automatically on first run).
 2. Add a scheduler entry outside the CLI to invoke `doclog capture` at your preferred check-in time.
 3. Capture daily progress and generate reusable career artifacts from the same captured story.
+
+### Generate posts
+
+```bash
+# Default: prompt file only (paste into Cursor/Copilot chat manually)
+doclog weekly
+doclog generate blog -t "nginx fix"
+
+# Auto-generate via logged-in Cursor CLI
+doclog config set provider cursor
+doclog generate blog -t "nginx fix"
+
+# Or Copilot
+doclog config set provider copilot
+
+# Back to prompt-only
+doclog config set provider prompt_only
+
+# Check provider availability
+doclog config
+```
+
+Ensure Cursor/Copilot CLI is installed and authenticated when using those providers (`agent login` or `copilot`).
+
+### Publish a post to git
+
+Point DocLogs at a local clone of your blog/docs repo, then commit and push generated posts:
+
+```bash
+doclog publish set repo ~/projects/my-blog
+doclog publish set branch main
+doclog generate blog -t 1
+doclog publish push --latest
+```
+
+Or push a specific file:
+
+```bash
+doclog publish push ~/.doclog/posts/nginx-fix-blog.md -m "Add nginx TLS post"
+```
 
 ## Publish to PyPI (GitHub Actions)
 

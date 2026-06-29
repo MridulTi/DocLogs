@@ -1,7 +1,19 @@
 # DocLogs configuration
 
 llm:
-  provider: openai
+  provider: prompt_only
+
+cursor:
+  command: agent
+  model: auto
+  mode: ask
+  trust_workspace: true
+  timeout_seconds: 120
+
+copilot:
+  command: copilot
+  model: auto
+  timeout_seconds: 120
 
 openai:
   model: gpt-4o-mini
@@ -18,3 +30,9 @@ anthropic:
 gemini:
   model: gemini-pro
   api_key: "${GEMINI_API_KEY}"
+
+publish:
+  repo: null
+  branch: main
+  remote: origin
+  subdir: posts

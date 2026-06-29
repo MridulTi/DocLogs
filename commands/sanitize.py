@@ -3,6 +3,7 @@ from typing import *
 
 from helper.entry import entry_path_for, load_entry
 from helper.sanitize import redact, sanitize_with_review, text_from_entry
+from helper.syntax import maybe_show_syntax
 
 
 def register(app: typer.Typer):
@@ -10,7 +11,9 @@ def register(app: typer.Typer):
     @app.command("sanitize",  help="Sanitize content before sending to an LLM.")
     def sanitize(
         source: Optional[str] = typer.Argument(None, help="Text to sanitize. If omitted, uses today's capture."),
+        syntax: bool = typer.Option(False, "--syntax", help="Show command syntax, options, and examples."),
     ) -> None:
+        maybe_show_syntax("sanitize", syntax)
         if source:
             text = source
         else:

@@ -76,11 +76,13 @@ Phases and todos for building the DocLogs CLI. Update checkboxes as work complet
 
 | # | Task | Status |
 |---|------|--------|
-| 4.1 | Load prompt templates from `prompts/` (blog, linkedin, resume) | ⬜ |
-| 4.2 | Provider adapter interface — read `config.yaml` (openai, ollama, …) | ⬜ |
-| 4.3 | Implement one provider first (Ollama local recommended) | ⬜ |
-| 4.4 | Wire `commands/generate.py` — pick story → sanitize → prompt → write `doclog/posts/` | ⬜ |
-| 4.5 | Add remaining providers (OpenAI, Anthropic, Gemini) | ⬜ |
+| 4.1 | Load prompt templates from `helper/templates/` (blog, linkedin, resume) | ✅ |
+| 4.2 | Provider adapter interface — read `config.yaml` | ✅ |
+| 4.2a | Cursor CLI provider (`agent` / `cursor-agent`) | ✅ |
+| 4.2b | Copilot CLI provider (`copilot`) | ✅ |
+| 4.3 | Implement one API provider (Ollama local recommended) | ⬜ |
+| 4.4 | Wire `commands/generate.py` — pick story → sanitize → prompt → write `doclog/posts/` | ✅ |
+| 4.5 | Add remaining API providers (OpenAI, Anthropic, Gemini) | ⬜ |
 
 ---
 

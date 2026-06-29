@@ -17,6 +17,11 @@ def extract_worked_on(block: str) -> str | None:
     return _extract_worked_on(block)
 
 
+def normalize_title(text: str) -> str:
+    """Collapse whitespace and lowercase for fuzzy title matching."""
+    return " ".join(text.strip().lower().split())
+
+
 def list_incomplete_tasks(notes: str | None) -> list[tuple[int, str]]:
     if not notes:
         return []

@@ -59,3 +59,21 @@ Append new entries at the bottom. Keep older entries—do not delete history.
 - Added `commands/git_collector.py`
 - Fills repository path, branch, today's commits
 - Wired into `capture`
+
+---
+
+### 2026-06-25 — done
+
+**Area:** generate
+
+**Summary:** IDE-native post generation via Cursor and Copilot CLI
+
+**Details:**
+- Added `helper/llm/` provider layer: `prompt_only`, `cursor`, `copilot`
+- `doclog generate` supports `--provider`, `--prompt-only`, `--force`
+- Default remains `prompt_only`; opt in via `~/.doclog/config.yaml`
+- External providers write `{slug}-{type}-prompt.md` and `{slug}-{type}.md`
+- `doclog config` shows provider availability for Cursor and Copilot CLIs
+- Updated `helper/templates/config.yaml`, README, architecture, roadmap
+
+**Files touched:** `helper/llm/*`, `helper/generate.py`, `commands/generate.py`, `commands/config.py`, `helper/paths.py`, docs

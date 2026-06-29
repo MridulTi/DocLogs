@@ -33,25 +33,32 @@ DocLogs is designed as a local operating system for engineering accomplishments,
 
 ## Model-agnostic provider support
 
-The config file should allow users to select a provider and associated settings.
+The config file allows users to select a provider and associated settings. By default, `doclog generate` writes a sanitized prompt file only (`prompt_only`). Opt in to IDE-native providers that reuse existing logins on your machine:
+
+- **cursor** — Cursor CLI (`agent login`)
+- **copilot** — GitHub Copilot CLI (`copilot`)
+
+API-based providers (OpenAI, Ollama, Anthropic, Gemini) are planned for a later phase.
 
 Example:
 
 ```yaml
 llm:
-  provider: openai
-  openai:
-    model: gpt-4o-mini
-    api_key: ${OPENAI_API_KEY}
-  ollama:
-    endpoint: http://localhost:11434
-  anthropic:
-    model: claude-3
-  gemini:
-    model: gemini-pro
+  provider: prompt_only
+
+cursor:
+  command: agent
+  model: auto
+  mode: ask
+  timeout_seconds: 120
+
+copilot:
+  command: copilot
+  model: auto
+  timeout_seconds: 120
 ```
 
-The CLI should route generation through an adapter layer and never hard-code a single provider.
+The CLI routes generation through `helper/llm/` adapters and never hard-codes a single provider.
 
 ## Sanitization layer
 

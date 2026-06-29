@@ -5,6 +5,7 @@ from helper.capture import build_capture_entry, merge_notes
 from helper.capture_prompts import iter_interactive_tasks
 from helper.entry import save_entry
 from helper.git_collector import find_git_root
+from helper.syntax import maybe_show_syntax
 
 
 def _print_summary(entry, path) -> None:
@@ -21,7 +22,9 @@ def register(app: typer.Typer):
         no_interactive: bool = typer.Option(False, "--no-interactive", help="Skip questions; git-only capture."),
         include_terminal: bool = typer.Option(False, help="Include optional terminal history evidence."),
         include_tickets: bool = typer.Option(False, help="Include optional ticket IDs or issue references."),
+        syntax: bool = typer.Option(False, "--syntax", help="Show command syntax, options, and examples."),
     ) -> None:
+        maybe_show_syntax("capture", syntax)
         if find_git_root() is None:
             typer.echo("⚠️  Not inside a git repo — git evidence will be empty.")
 

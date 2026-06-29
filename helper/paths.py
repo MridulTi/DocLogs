@@ -53,5 +53,5 @@ def ensure_config() -> Path:
     if default.exists():
         shutil.copy(default, path)
     else:
-        path.write_text("llm:\n  provider: openai\n", encoding="utf-8")
+        path.write_text("llm:\n  provider: prompt_only\n", encoding="utf-8")
     return path

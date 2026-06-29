@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "doclogs-cli"
-version = "0.1.0"
+version = "0.1.1"
 description = "CLI for capturing engineering work and turning it into career artifacts."
 readme = "README.md"
 license = "MIT"
