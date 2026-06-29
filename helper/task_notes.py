@@ -17,6 +17,19 @@ def extract_worked_on(block: str) -> str | None:
     return _extract_worked_on(block)
 
 
+def extract_topic(block: str) -> str | None:
+    return _extract_field(
+        block,
+        "topic",
+        stop_fields=("worked_on", "impact", "blockers", "remember", "status", "### Task"),
+    )
+
+
+def story_title(block: str) -> str | None:
+    """Short label for weekly/generate; prefers topic over worked_on."""
+    return extract_topic(block) or extract_worked_on(block)
+
+
 def normalize_title(text: str) -> str:
     """Collapse whitespace and lowercase for fuzzy title matching."""
     return " ".join(text.strip().lower().split())
@@ -33,21 +46,27 @@ def list_incomplete_tasks(notes: str | None) -> list[tuple[int, str]]:
             continue
         match = re.search(r"### Task (\d+)", block)
         task_num = int(match.group(1)) if match else 0
-        summary = _extract_worked_on(block) or (f"Task {task_num}" if task_num else "Incomplete entry")
+        summary = story_title(block) or (f"Task {task_num}" if task_num else "Incomplete entry")
         results.append((task_num, summary))
 
     return results
 
 
 def _extract_worked_on(block: str) -> str | None:
-    match = re.search(
-        r"worked_on:\s*(.+?)(?=\n(?:impact|blockers|remember|status:|### Task|\Z))",
+    return _extract_field(
         block,
-        re.DOTALL,
+        "worked_on",
+        stop_fields=("topic", "impact", "blockers", "remember", "status", "### Task"),
     )
+
+
+def _extract_field(block: str, field: str, *, stop_fields: tuple[str, ...]) -> str | None:
+    stops = "|".join(re.escape(name) for name in stop_fields)
+    pattern = rf"{field}:\s*(.+?)(?=\n(?:{stops}|\Z))"
+    match = re.search(pattern, block, re.DOTALL)
     if not match:
         return None
-    return " ".join(match.group(1).split())  # flatten multiline YAML
+    return " ".join(match.group(1).split())
 
 
 def complete_task(notes: str, task_num: int, followup: str) -> str:
@@ -61,7 +80,9 @@ def complete_task(notes: str, task_num: int, followup: str) -> str:
         if not match:
             raise ValueError(f"Task {task_num} not found")
         worked_on = _extract_worked_on(match.group(0)) or ""
-        new_block = f"### Task {task_num}\nworked_on: {worked_on}\n{followup}"
+        topic = extract_topic(match.group(0))
+        topic_line = f"topic: {topic}\n" if topic else ""
+        new_block = f"### Task {task_num}\n{topic_line}worked_on: {worked_on}\n{followup}"
 
     match = re.search(pattern, notes, re.DOTALL)
     if not match:

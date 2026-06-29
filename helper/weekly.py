@@ -5,7 +5,7 @@ from datetime import date, timedelta
 
 from helper.entry import DailyEntry, load_entry
 from helper.paths import entries_dir
-from helper.task_notes import DETAILS_LATER, extract_worked_on, parse_task_blocks
+from helper.task_notes import DETAILS_LATER, parse_task_blocks, story_title
 
 
 @dataclass
@@ -45,7 +45,7 @@ def build_story_candidates(
                 )
 
         for block in parse_task_blocks(entry.notes):
-            title = extract_worked_on(block)
+            title = story_title(block)
             if not title:
                 continue
             key = title.lower()

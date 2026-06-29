@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 
-from helper.task_notes import extract_worked_on, normalize_title, parse_task_blocks
+from helper.task_notes import extract_topic, extract_worked_on, normalize_title, parse_task_blocks, story_title
 from helper.weekly import build_story_candidates, load_entries_for_days
 
 _WEEKLY_DATE_SUFFIX = re.compile(r"\s+\(\d{4}-\d{2}-\d{2}\)\s*$")
@@ -53,14 +53,16 @@ def find_story_text(title: str, days: int = 7) -> str | None:
                 )
 
         for block in parse_task_blocks(entry.notes):
-            task_title = extract_worked_on(block)
-            if not task_title:
+            titles = _task_titles(block)
+            if not titles:
                 continue
-            candidate = normalize_title(task_title)
-            if candidate == needle:
-                return block
-            if _is_partial_match(needle, candidate):
-                partial_matches.append(block)
+            for candidate in titles:
+                normalized = normalize_title(candidate)
+                if needle == normalized:
+                    return block
+                if _is_partial_match(needle, normalized):
+                    partial_matches.append(block)
+                    break
 
     if len(partial_matches) == 1:
         return partial_matches[0]
@@ -68,6 +70,21 @@ def find_story_text(title: str, days: int = 7) -> str | None:
 
 
 def _is_partial_match(needle: str, candidate: str) -> bool:
-    if len(needle) < 8:
+    if len(needle) < 3:
         return False
     return needle in candidate or candidate in needle
+
+
+def _task_titles(block: str) -> list[str]:
+    titles: list[str] = []
+    topic = extract_topic(block)
+    worked_on = extract_worked_on(block)
+    if topic:
+        titles.append(topic)
+    if worked_on and worked_on not in titles:
+        titles.append(worked_on)
+    if not titles:
+        fallback = story_title(block)
+        if fallback:
+            titles.append(fallback)
+    return titles

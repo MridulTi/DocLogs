@@ -37,6 +37,7 @@ SYNTAX: dict[str, CommandSyntax] = {
         usage="doclog capture [OPTIONS]",
         options=(
             "-n, --notes TEXT       Notes text (skips interactive prompts)",
+            "--topic TEXT           Short task name (weekly & generate -t)",
             "--no-interactive       Git-only capture; skip questions",
             "--include-terminal     Include terminal history (planned)",
             "--include-tickets      Include ticket IDs (planned)",
@@ -44,6 +45,8 @@ SYNTAX: dict[str, CommandSyntax] = {
         ),
         examples=(
             "doclog capture",
+            "doclog capture --topic \"nginx akamai TLS\"",
+            'doclog capture --topic "DocLogs" -n "worked_on: shipped publish command"',
             "doclog capture --no-interactive",
             'doclog capture -n "Fixed nginx TLS handshake with Akamai"',
             "doclog capture --syntax",

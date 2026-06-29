@@ -59,28 +59,38 @@ def _next_task_number() -> int:
     return max(nums, default=0) + 1
 
 
-def iter_interactive_tasks():
+def iter_interactive_tasks(topic: str | None = None):
     updated = maybe_complete_stub()
     if updated:
         yield updated, True   # ← replace entire notes
     task_num = _next_task_number()
+    first_task = True
     while True:
         typer.echo(f"\n--- Task {task_num} ---\n")
-        batch = collect_interactive_notes()
+        default_topic = topic if first_task else None
+        batch = collect_interactive_notes(default_topic=default_topic)
+        first_task = False
         if batch:
             yield f"### Task {task_num}\n{batch}", False   # ← append new task
         if not typer.confirm("Add another task?", default=False):
             break
         task_num += 1
 
-def collect_interactive_notes() -> str | None:
+def collect_interactive_notes(default_topic: str | None = None) -> str | None:
     typer.echo("\n📋 Daily capture — answer briefly (Enter to skip optional questions)\n")
 
+    topic_answer = typer.prompt(
+        "Task topic (short name for weekly & generate)",
+        default=default_topic or "",
+    ).strip()
     worked_on = typer.prompt("What did you work on today?", default="").strip()
     if not worked_on:
         return None
 
-    lines = [f"worked_on: {worked_on}"]
+    lines: list[str] = []
+    if topic_answer:
+        lines.append(f"topic: {topic_answer}")
+    lines.append(f"worked_on: {worked_on}")
 
     if typer.confirm("Add more details later?", default=False):
         lines.append("status: details_later")

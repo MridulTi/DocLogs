@@ -14,11 +14,25 @@ def _print_summary(entry, path) -> None:
     typer.echo(f"   commits today: {len(entry.commits)}")
 
 
+def _notes_with_topic(notes: str, topic: str | None) -> str:
+    if not topic or not topic.strip():
+        return notes
+    topic_line = f"topic: {topic.strip()}"
+    if notes.lstrip().startswith("topic:"):
+        return notes
+    return f"{topic_line}\n{notes}"
+
+
 def register(app: typer.Typer):
 
     @app.command("capture", help="Capture today's engineering work into local storage.")
     def capture(
         notes: Optional[str] = typer.Option(None, "-n", "--notes", help="Optional notes (skips interactive prompts)."),
+        topic: Optional[str] = typer.Option(
+            None,
+            "--topic",
+            help="Short task name (used in weekly review and doclog generate -t).",
+        ),
         no_interactive: bool = typer.Option(False, "--no-interactive", help="Skip questions; git-only capture."),
         include_terminal: bool = typer.Option(False, help="Include optional terminal history evidence."),
         include_tickets: bool = typer.Option(False, help="Include optional ticket IDs or issue references."),
@@ -34,7 +48,7 @@ def register(app: typer.Typer):
             entry = None
             saved_any = False
 
-            for batch, replace in iter_interactive_tasks():
+            for batch, replace in iter_interactive_tasks(topic=topic):
                 entry = build_capture_entry(notes=batch, replace_notes=replace)
                 path = save_entry(entry)
                 saved_any = True
@@ -48,7 +62,7 @@ def register(app: typer.Typer):
             return
 
         # Non-interactive: git only or single --notes
-        final_notes = merge_notes(notes)
+        final_notes = merge_notes(_notes_with_topic(notes, topic) if notes else None)
         entry = build_capture_entry(notes=final_notes)
         path = save_entry(entry)
         _print_summary(entry, path)
