@@ -12,7 +12,7 @@ Trusted publishing uses OIDC — no API token stored in GitHub.
 
 | Field | Value |
 |-------|--------|
-| PyPI project name | `doclogs` |
+| PyPI project name | `doclogs-cli` |
 | Owner | `MridulTi` |
 | Repository | `DocLogs` |
 | Workflow name | `publish.yml` |
@@ -46,11 +46,11 @@ Create the GitHub Release for that tag.
 ## Verify
 
 ```bash
-pip install doclogs
+pip install doclogs-cli
 doclog --help
 ```
 
-https://pypi.org/project/doclogs/
+https://pypi.org/project/doclogs-cli/
 
 ## Fallback: API token (if trusted publishing fails)
 

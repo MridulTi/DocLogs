@@ -66,7 +66,7 @@ For implementation, start by focusing on:
 ### Install from PyPI
 
 ```bash
-pip install doclogs
+pip install doclogs-cli
 doclog --help
 ```
 
