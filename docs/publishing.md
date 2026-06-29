@@ -29,6 +29,8 @@ git tag v0.1.0
 git push origin v0.1.0
 ```
 
+Or run manually: GitHub → **Actions** → **Publish to PyPI** → **Run workflow**.
+
 ## Bump version before each release
 
 Edit `version` in `pyproject.toml`, commit, tag, push:
