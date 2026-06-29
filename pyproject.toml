@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "doclogs-cli"
-version = "0.1.2"
-description = "CLI for capturing engineering work and turning it into career artifacts."
+version = "0.1.3"
+description = "Capture daily engineering work, generate blog and career artifacts with Cursor or Copilot, and publish posts to git."
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.11"
