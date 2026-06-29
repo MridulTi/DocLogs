@@ -16,26 +16,18 @@ Trusted publishing uses OIDC — no API token stored in GitHub.
 | Owner | `MridulTi` |
 | Repository | `DocLogs` |
 | Workflow name | `publish.yml` |
-| Environment name | `pypi` |
+| Environment name | *(leave blank)* |
 
-4. On GitHub: repo **Settings → Environments → New environment** → name it `pypi`
+Do **not** set a GitHub Environment unless you also configure one on PyPI — a mismatch causes `invalid-publisher`.
 
 ## Publish a release
 
-### Option A — GitHub Release (recommended)
+Push a version tag — the workflow runs automatically:
 
 ```bash
 git tag v0.1.0
 git push origin v0.1.0
 ```
-
-Then on GitHub: **Releases → Draft a new release** → choose tag `v0.1.0` → **Publish release**.
-
-The `publish.yml` workflow runs automatically.
-
-### Option B — Manual trigger
-
-GitHub → **Actions** → **Publish to PyPI** → **Run workflow**
 
 ## Bump version before each release
 

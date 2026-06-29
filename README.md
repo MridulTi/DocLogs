@@ -102,14 +102,14 @@ doclog capture
 
 Publishing runs via GitHub Actions — no local `twine upload` needed.
 
-1. Configure [trusted publishing](docs/publishing.md) on PyPI + GitHub environment `pypi`
-2. Tag and create a GitHub Release:
+1. Configure [trusted publishing](docs/publishing.md) on PyPI (leave Environment blank)
+2. Push a version tag:
 
 ```bash
 git tag v0.1.0
 git push origin v0.1.0
 ```
 
-3. GitHub → **Releases** → publish release → workflow uploads to PyPI
+The workflow uploads to PyPI automatically.
 
 See [docs/publishing.md](docs/publishing.md) for full setup.
