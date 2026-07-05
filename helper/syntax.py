@@ -159,7 +159,7 @@ SYNTAX: dict[str, CommandSyntax] = {
         usage="doclog publish set KEY VALUE",
         options=(
             "KEY     repo | branch | remote | subdir",
-            "VALUE   Local clone path or git URL (https / git@)",
+            "VALUE   Local path/git URL, or branch name (main), or folder (posts)",
             "--syntax   Show this help with examples",
         ),
         examples=(

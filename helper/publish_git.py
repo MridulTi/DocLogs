@@ -176,6 +176,10 @@ def set_publish_value(key: str, value: str, path: Path | None = None) -> tuple[P
             publish["repo_url"] = resolved.remote_url
         else:
             publish.pop("repo_url", None)
+        current_branch = publish.get("branch", "main")
+        subdir = publish.get("subdir", "posts")
+        if not current_branch or str(current_branch).strip() == str(subdir).strip():
+            publish["branch"] = detect_default_branch(resolved.path)
     else:
         publish[normalized] = value.strip()
 
@@ -209,6 +213,35 @@ def resolve_post_file(post: Path | None, *, latest: bool) -> Path:
     if resolved.name.endswith("-prompt.md"):
         raise PublishError("Pass the generated artifact, not the prompt file.")
     return resolved
+
+
+def detect_default_branch(repo_root: Path) -> str:
+    remote_head = _run_git(["symbolic-ref", "refs/remotes/origin/HEAD"], repo_root)
+    if remote_head.returncode == 0:
+        return remote_head.stdout.strip().rsplit("/", 1)[-1]
+
+    current = _run_git(["rev-parse", "--abbrev-ref", "HEAD"], repo_root)
+    if current.returncode == 0:
+        name = current.stdout.strip()
+        if name and name != "HEAD":
+            return name
+
+    return "main"
+
+
+def _validate_publish_branch(config: PublishConfig, repo_root: Path) -> str:
+    branch = config.branch.strip()
+    subdir = config.subdir.strip()
+
+    if branch == subdir:
+        detected = detect_default_branch(repo_root)
+        raise PublishError(
+            f"publish.branch is {branch!r} but that matches subdir (folder name), not a git branch.\n"
+            f"Run: doclog publish set branch {detected}\n"
+            f"subdir {subdir!r} is where posts are copied inside the repo."
+        )
+
+    return branch
 
 
 def _run_git(args: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
@@ -260,9 +293,16 @@ def push_post(
     if commit.returncode != 0:
         raise PublishError(commit.stderr.strip() or commit.stdout.strip() or "git commit failed")
 
-    push = _run_git(["push", config.remote, config.branch], repo_root)
+    branch = _validate_publish_branch(config, repo_root)
+    push = _run_git(["push", config.remote, f"HEAD:{branch}"], repo_root)
     if push.returncode != 0:
         detail = (push.stderr or push.stdout or "").strip()
+        if "src refspec" in detail and branch in detail:
+            detected = detect_default_branch(repo_root)
+            raise PublishError(
+                f"{detail}\n"
+                f"Hint: branch {branch!r} is not valid. Run: doclog publish set branch {detected}"
+            )
         raise PublishError(detail or "git push failed")
 
     return dest_file

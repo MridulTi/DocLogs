@@ -19,9 +19,9 @@ def _show_publish_config() -> None:
     typer.echo(f"  repo:     {config.repo_path or '(not set)'}")
     if config.repo_url:
         typer.echo(f"  repo_url: {config.repo_url}")
-    typer.echo(f"  branch:   {config.branch}")
+    typer.echo(f"  branch:   {config.branch}  (git branch to push to)")
     typer.echo(f"  remote:   {config.remote}")
-    typer.echo(f"  subdir:   {config.subdir}")
+    typer.echo(f"  subdir:   {config.subdir}  (folder inside repo for posts)")
     typer.echo("")
     typer.echo("Configure:")
     typer.echo("  doclog publish set repo ~/projects/my-blog")
