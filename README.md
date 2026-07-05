@@ -72,7 +72,7 @@ For implementation, start by focusing on:
 ### Install from PyPI
 
 ```bash
-pip install -U doclogs-cli==0.1.5
+pip install -U doclogs-cli==0.1.6
 doclog --help
 ```
 
@@ -154,8 +154,8 @@ Publishing runs via GitHub Actions — no local `twine upload` needed.
 2. Push a version tag:
 
 ```bash
-git tag v0.1.5
-git push origin v0.1.5
+git tag v0.1.6
+git push origin v0.1.6
 ```
 
 The workflow uploads to PyPI automatically.

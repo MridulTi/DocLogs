@@ -91,13 +91,15 @@ def register(app: typer.Typer):
         maybe_show_syntax("publish push", syntax)
         try:
             post_file = resolve_post_file(post, latest=latest)
-            dest = push_post(post_file, load_publish_config(), message=message)
+            config = load_publish_config()
+            dest, push_reason = push_post(post_file, config, message=message)
         except PublishError as exc:
             typer.echo(str(exc))
             raise typer.Exit(code=1) from exc
 
-        typer.echo(f"Published {post_file.name}")
-        typer.echo(f"  copied to {dest}")
-        typer.echo(f"  pushed to remote")
+        target = config.repo_url or str(config.repo_path)
+        typer.echo(f"Published {post_file.name} ({push_reason})")
+        typer.echo(f"  copied to {config.subdir}/{dest.name}")
+        typer.echo(f"  pushed to {target} ({config.remote}/{config.branch})")
 
     app.add_typer(publish_app, name="publish")

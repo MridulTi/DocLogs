@@ -78,7 +78,14 @@ def resolve_publish_repo(value: str) -> ResolvedRepo:
 
         if dest.exists() and find_git_root(dest) is not None:
             repo_root = find_git_root(dest) or dest
-            action = _sync_publish_clone(repo_root)
+            sync_config = load_publish_config()
+            if sync_config.repo_path is None:
+                sync_config = PublishConfig(
+                    repo_path=repo_root,
+                    repo_url=remote_url,
+                    branch=detect_default_branch(repo_root),
+                )
+            action = _sync_publish_clone(repo_root, sync_config)
             return ResolvedRepo(path=repo_root.resolve(), remote_url=remote_url, action=action)
 
         if dest.exists():
@@ -252,33 +259,69 @@ def _run_git(args: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
     )
 
 
-def _sync_publish_clone(repo_root: Path) -> str:
-    fetch = _run_git(["fetch", "origin"], repo_root)
+def _remote_branch_ref(config: PublishConfig) -> str:
+    return f"{config.remote}/{config.branch}"
+
+
+def _commits_ahead(repo_root: Path, config: PublishConfig) -> int:
+    result = _run_git(
+        ["rev-list", "--count", f"{_remote_branch_ref(config)}..HEAD"],
+        repo_root,
+    )
+    if result.returncode != 0:
+        return 0
+    try:
+        return int(result.stdout.strip() or "0")
+    except ValueError:
+        return 0
+
+
+def _ensure_on_branch(repo_root: Path, config: PublishConfig) -> None:
+    branch = config.branch.strip()
+    current = _run_git(["rev-parse", "--abbrev-ref", "HEAD"], repo_root)
+    if current.returncode == 0 and current.stdout.strip() == branch:
+        return
+
+    checkout = _run_git(["checkout", branch], repo_root)
+    if checkout.returncode != 0:
+        remote_ref = _remote_branch_ref(config)
+        verify = _run_git(["rev-parse", "--verify", remote_ref], repo_root)
+        if verify.returncode == 0:
+            checkout = _run_git(["checkout", "-B", branch, remote_ref], repo_root)
+        else:
+            checkout = _run_git(["checkout", "-B", branch], repo_root)
+
+    if checkout.returncode != 0:
+        detail = (checkout.stderr or checkout.stdout or "").strip()
+        raise ValueError(f"Could not checkout branch {branch!r}: {detail}")
+
+
+def _sync_publish_clone(repo_root: Path, config: PublishConfig) -> str:
+    fetch = _run_git(["fetch", config.remote], repo_root)
     if fetch.returncode != 0:
         detail = (fetch.stderr or fetch.stdout or "").strip()
-        raise ValueError(f"Could not fetch publish clone at {repo_root}: {detail or 'git fetch failed'}")
+        raise ValueError(
+            f"Could not fetch publish clone at {repo_root}: {detail or 'git fetch failed'}"
+        )
 
-    branch = detect_default_branch(repo_root)
-    current = _run_git(["rev-parse", "--abbrev-ref", "HEAD"], repo_root)
-    if current.returncode == 0 and current.stdout.strip() != branch:
-        checkout = _run_git(["checkout", branch], repo_root)
-        if checkout.returncode != 0:
-            checkout = _run_git(["checkout", "-B", branch, f"origin/{branch}"], repo_root)
-        if checkout.returncode != 0:
-            detail = (checkout.stderr or checkout.stdout or "").strip()
-            raise ValueError(f"Could not checkout {branch!r} in publish clone: {detail}")
+    _ensure_on_branch(repo_root, config)
+    remote_ref = _remote_branch_ref(config)
+    verify = _run_git(["rev-parse", "--verify", remote_ref], repo_root)
 
-    ff = _run_git(["merge", "--ff-only", f"origin/{branch}"], repo_root)
+    if verify.returncode != 0:
+        return "ready"
+
+    ff = _run_git(["merge", "--ff-only", remote_ref], repo_root)
     if ff.returncode == 0:
         return "updated"
 
-    rebase = _run_git(["rebase", f"origin/{branch}"], repo_root)
+    rebase = _run_git(["rebase", remote_ref], repo_root)
     if rebase.returncode == 0:
         return "rebased"
 
     detail = (rebase.stderr or rebase.stdout or ff.stderr or ff.stdout or "").strip()
     raise ValueError(
-        f"Could not sync publish clone at {repo_root}.\n"
+        f"Could not sync publish clone at {repo_root} on branch {config.branch!r}.\n"
         f"{detail}\n\n"
         "Fix manually:\n"
         f"  cd {repo_root} && git status\n"
@@ -293,7 +336,7 @@ def push_post(
     config: PublishConfig,
     *,
     message: str | None = None,
-) -> Path:
+) -> tuple[Path, str]:
     if config.repo_path is None:
         raise PublishError(
             "Publish repo is not configured. Run:\n"
@@ -301,12 +344,14 @@ def push_post(
             "  doclog publish set repo https://github.com/MridulTi/DocLogs"
         )
 
+    branch = _validate_publish_branch(config, config.repo_path)
+
     repo_root = find_git_root(config.repo_path)
     if repo_root is None:
         raise PublishError(f"Not a git repository: {config.repo_path}")
 
     try:
-        _sync_publish_clone(repo_root)
+        _sync_publish_clone(repo_root, config)
     except ValueError as exc:
         raise PublishError(str(exc)) from exc
 
@@ -320,19 +365,24 @@ def push_post(
     if status.returncode != 0:
         raise PublishError(status.stderr.strip() or "git status failed")
 
-    if not status.stdout.strip():
-        raise PublishError(f"No changes to publish for {dest_file.name} (already up to date).")
+    has_file_changes = bool(status.stdout.strip())
+    if has_file_changes:
+        add = _run_git(["add", "--", rel_path], repo_root)
+        if add.returncode != 0:
+            raise PublishError(add.stderr.strip() or "git add failed")
 
-    add = _run_git(["add", "--", rel_path], repo_root)
-    if add.returncode != 0:
-        raise PublishError(add.stderr.strip() or "git add failed")
+        commit_message = message or f"doclog: add post {post_file.stem}"
+        commit = _run_git(["commit", "-m", commit_message], repo_root)
+        if commit.returncode != 0:
+            raise PublishError(commit.stderr.strip() or commit.stdout.strip() or "git commit failed")
+        push_reason = "committed and pushed"
+    elif _commits_ahead(repo_root, config) > 0:
+        push_reason = "pushed existing local commits"
+    else:
+        raise PublishError(
+            f"No changes to publish for {dest_file.name} (already up to date on {branch!r})."
+        )
 
-    commit_message = message or f"doclog: add post {post_file.stem}"
-    commit = _run_git(["commit", "-m", commit_message], repo_root)
-    if commit.returncode != 0:
-        raise PublishError(commit.stderr.strip() or commit.stdout.strip() or "git commit failed")
-
-    branch = _validate_publish_branch(config, repo_root)
     push = _run_git(["push", config.remote, f"HEAD:{branch}"], repo_root)
     if push.returncode != 0:
         detail = (push.stderr or push.stdout or "").strip()
@@ -342,6 +392,9 @@ def push_post(
                 f"{detail}\n"
                 f"Hint: branch {branch!r} is not valid. Run: doclog publish set branch {detected}"
             )
-        raise PublishError(detail or "git push failed")
+        raise PublishError(
+            f"{detail or 'git push failed'}\n"
+            f"Target: {config.repo_url or repo_root} ({config.remote}/{branch})"
+        )
 
-    return dest_file
+    return dest_file, push_reason
