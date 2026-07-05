@@ -77,11 +77,9 @@ def resolve_publish_repo(value: str) -> ResolvedRepo:
         dest = publish_repos_dir() / slug
 
         if dest.exists() and find_git_root(dest) is not None:
-            pull = _run_git(["pull", "--ff-only"], dest)
-            if pull.returncode != 0:
-                detail = (pull.stderr or pull.stdout or "").strip()
-                raise ValueError(f"Could not update clone at {dest}: {detail or 'git pull failed'}")
-            return ResolvedRepo(path=dest.resolve(), remote_url=remote_url, action="updated")
+            repo_root = find_git_root(dest) or dest
+            action = _sync_publish_clone(repo_root)
+            return ResolvedRepo(path=repo_root.resolve(), remote_url=remote_url, action=action)
 
         if dest.exists():
             raise ValueError(
@@ -254,6 +252,42 @@ def _run_git(args: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
     )
 
 
+def _sync_publish_clone(repo_root: Path) -> str:
+    fetch = _run_git(["fetch", "origin"], repo_root)
+    if fetch.returncode != 0:
+        detail = (fetch.stderr or fetch.stdout or "").strip()
+        raise ValueError(f"Could not fetch publish clone at {repo_root}: {detail or 'git fetch failed'}")
+
+    branch = detect_default_branch(repo_root)
+    current = _run_git(["rev-parse", "--abbrev-ref", "HEAD"], repo_root)
+    if current.returncode == 0 and current.stdout.strip() != branch:
+        checkout = _run_git(["checkout", branch], repo_root)
+        if checkout.returncode != 0:
+            checkout = _run_git(["checkout", "-B", branch, f"origin/{branch}"], repo_root)
+        if checkout.returncode != 0:
+            detail = (checkout.stderr or checkout.stdout or "").strip()
+            raise ValueError(f"Could not checkout {branch!r} in publish clone: {detail}")
+
+    ff = _run_git(["merge", "--ff-only", f"origin/{branch}"], repo_root)
+    if ff.returncode == 0:
+        return "updated"
+
+    rebase = _run_git(["rebase", f"origin/{branch}"], repo_root)
+    if rebase.returncode == 0:
+        return "rebased"
+
+    detail = (rebase.stderr or rebase.stdout or ff.stderr or ff.stdout or "").strip()
+    raise ValueError(
+        f"Could not sync publish clone at {repo_root}.\n"
+        f"{detail}\n\n"
+        "Fix manually:\n"
+        f"  cd {repo_root} && git status\n"
+        "Or reset the managed clone and reconfigure:\n"
+        f"  rm -rf {repo_root}\n"
+        "  doclog publish set repo <your-repo-url>"
+    )
+
+
 def push_post(
     post_file: Path,
     config: PublishConfig,
@@ -270,6 +304,11 @@ def push_post(
     repo_root = find_git_root(config.repo_path)
     if repo_root is None:
         raise PublishError(f"Not a git repository: {config.repo_path}")
+
+    try:
+        _sync_publish_clone(repo_root)
+    except ValueError as exc:
+        raise PublishError(str(exc)) from exc
 
     dest_dir = repo_root / config.subdir
     dest_dir.mkdir(parents=True, exist_ok=True)

@@ -65,6 +65,8 @@ def register(app: typer.Typer):
                 typer.echo("  (cloned into ~/.doclog/publish/repos/)")
             elif resolved.action == "updated":
                 typer.echo("  (existing clone updated with git pull)")
+            elif resolved.action == "rebased":
+                typer.echo("  (existing clone rebased onto origin)")
 
     @publish_app.command("push", help="Copy a post into the publish repo, commit, and push.")
     def publish_push(
