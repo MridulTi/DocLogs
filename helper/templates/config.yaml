@@ -33,6 +33,7 @@ gemini:
 
 publish:
   repo: null
+  repo_url: null
   branch: main
   remote: origin
   subdir: posts

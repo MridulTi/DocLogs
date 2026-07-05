@@ -16,12 +16,16 @@ from helper.syntax import maybe_show_syntax
 def _show_publish_config() -> None:
     config = load_publish_config()
     typer.echo("Publish configuration:")
-    typer.echo(f"  repo:   {config.repo_path or '(not set)'}")
-    typer.echo(f"  branch: {config.branch}")
-    typer.echo(f"  remote: {config.remote}")
-    typer.echo(f"  subdir: {config.subdir}")
+    typer.echo(f"  repo:     {config.repo_path or '(not set)'}")
+    if config.repo_url:
+        typer.echo(f"  repo_url: {config.repo_url}")
+    typer.echo(f"  branch:   {config.branch}")
+    typer.echo(f"  remote:   {config.remote}")
+    typer.echo(f"  subdir:   {config.subdir}")
     typer.echo("")
-    typer.echo("Configure: doclog publish set repo /path/to/clone")
+    typer.echo("Configure:")
+    typer.echo("  doclog publish set repo ~/projects/my-blog")
+    typer.echo("  doclog publish set repo https://github.com/MridulTi/DocLogs")
     typer.echo("Push post: doclog publish push --latest")
 
 
@@ -47,12 +51,20 @@ def register(app: typer.Typer):
     ) -> None:
         maybe_show_syntax("publish set", syntax)
         try:
-            config_file = set_publish_value(key, value)
+            config_file, resolved = set_publish_value(key, value)
         except ValueError as exc:
             typer.echo(str(exc))
             raise typer.Exit(code=1) from exc
 
         typer.echo(f"Set publish.{key.strip().lower()} in {config_file}")
+        if resolved is not None:
+            if resolved.remote_url:
+                typer.echo(f"  remote: {resolved.remote_url}")
+            typer.echo(f"  local:  {resolved.path}")
+            if resolved.action == "cloned":
+                typer.echo("  (cloned into ~/.doclog/publish/repos/)")
+            elif resolved.action == "updated":
+                typer.echo("  (existing clone updated with git pull)")
 
     @publish_app.command("push", help="Copy a post into the publish repo, commit, and push.")
     def publish_push(
