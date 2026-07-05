@@ -1,74 +1,37 @@
-# When TLS 1.3-Only Broke Everything: An Akamai ↔ External LB Handshake Mismatch
+# When TLS 1.3-only broke everything behind Akamai
 
-## The incident
+The alert wasn't subtle. Requests just stopped hitting our backend nginx box. Internal traffic from our own domains kept flowing, but anything coming in through Akamai-hosted domains — routed via the External LB — went dead. Several frontends all depended on that backend, so they went down together.
 
-Requests to our backend nginx box stopped abruptly. Traffic from internal domains continued to flow normally, but every request routed through Akamai-hosted domains via the external load balancer (ELB) vanished before it reached nginx.
+We run nginx in front of a shared backend that multiple application frontends talk to. Under normal conditions, Akamai terminates at the edge, traffic crosses the External LB, and nginx forwards to the app tier. Internal paths bypass that edge path entirely, which is why the split behavior was our first real clue: the nginx box wasn't universally broken. Something in the Akamai → External LB path was failing.
 
-The blast radius was wide: multiple application frontends depended on that backend, so they all went down at once. From the outside, it looked like a backend outage. Internally, nginx was healthy and internal callers could still reach it.
+## Chasing the wrong certificate
 
-That split — internal OK, external dead — was the first clue that the problem lived in the path *before* nginx, not in the application itself.
+We started from the frontend boxes and ran curls against the backend path. The failures looked like they were getting cut off at Akamai — not nginx, not the app. That pointed outward, not inward.
 
-## Diagnosis
+We opened a ticket with Akamai. Their read was an SSL certificate problem. That didn't sit right. We hadn't rotated certs, renewed anything, or touched the cert chain on our side. If nothing on the certificate had changed, why would Akamai suddenly start rejecting handshakes?
 
-We started with the obvious checks from a frontend box: repeated `curl` requests against the affected endpoints.
+We kept digging anyway. The Akamai angle was real — requests really were dying at their edge — but "certificate issue" felt like a symptom label, not the mechanism.
 
-The pattern was consistent: connections were being cut off **before** they reached our infrastructure. Akamai was terminating the handshake, not nginx or the app tier.
+## The policy mismatch
 
-When we opened a ticket with Akamai, their initial read pointed at an **SSL/TLS certificate issue**. That was a reasonable guess, but it didn’t match reality — **no certificate or cert configuration had changed** recently.
+While we were going back and forth, someone pulled up the External LB TLS security policy. That was the turn.
 
-We kept digging into what *had* changed. The mismatch turned out to be in **TLS security policy alignment** between two layers:
+The LB had been set to **TLS 1.3 only**. At Akamai, the property was on their default supported policy — the one that negotiates down through **1.2 → 1.1 → 1.0**, not a strict 1.3-only handshake.
 
-| Layer | TLS policy |
-|-------|------------|
-| External LB | `TLS 1.3` only |
-| Akamai property | Akamai-supported (prefers **1.2 → 1.1 → 1.0**, not 1.3-only) |
+TLS 1.3-only on the load balancer means the server side of the handshake insists on 1.3. Akamai's side, configured for broader compatibility, wasn't going to meet it there. The handshake never completed. From the outside it looked like Akamai was cutting requests off — and in a sense it was, because the TLS negotiation failed before anything useful got through. Easy to misread as "SSL cert broken" when the real failure mode is protocol policy mismatch.
 
-Akamai’s “supported” policy negotiates downward through older TLS versions. The external LB was configured for **TLS 1.3 handshake only**. There was no overlap in acceptable negotiation behavior: Akamai could not complete a 1.3-only handshake the way the LB expected, the TLS handshake failed, and Akamai dropped the connection.
+We hadn't changed certificates. We had changed (or inherited) a TLS policy that didn't match what Akamai could speak on that property.
 
-No nginx access logs spike. No app errors. Just silent failure at the edge — classic TLS policy drift.
+## What fixed it
 
-### Why this is easy to miss
+We rolled the External LB TLS security policy back to one that supports **both TLS 1.2 and TLS 1.3**. After that change, traffic from Akamai-hosted domains started reaching nginx again, and the dependent frontends came back.
 
-- **Symptoms look like an outage**, not a config change.
-- **Certificates are the default suspect**; policy mismatches are quieter.
-- **Internal traffic still works**, which can send you hunting in the wrong place (backend, nginx, app).
-- **Akamai sits in front**, so failures show up as “Akamai cut us off” rather than a clear LB error in your own logs.
+No nginx reload drama, no cert redeploy — just aligning the LB's minimum/maximum protocol behavior with what the Akamai property actually negotiates.
 
-## The fix
+## What I'm keeping in my head
 
-We changed the external LB TLS security policy from **TLS 1.3 only** back to a policy that **supports both TLS 1.2 and TLS 1.3**.
+The split between internal (working) and Akamai (broken) saved us from burning time on nginx config. But "Akamai says certificate" plus "we didn't touch certs" should have pushed us to TLS policy sooner.
 
-Traffic resumed immediately. No nginx restart, no cert rotation, no Akamai property rebuild — just policy realignment.
+The operational bit I care about: **any time we change TLS policy on the External LB, we need to coordinate with whoever owns the Akamai property config.** Edge and origin have to agree on what handshake they're willing to do. A 1.3-only LB in front of an Akamai property still on broad compatibility isn't a subtle drift — it's a hard cutoff.
 
-### Operational checklist (what we do now)
-
-When updating TLS policy on an external LB that sits behind Akamai:
-
-1. **Check Akamai property TLS settings** before changing the LB (match negotiation behavior, not just “we want modern TLS”).
-2. **Coordinate with Akamai** if the LB policy moves to 1.3-only or any non-default policy.
-3. **Test from outside the VPC** — internal curls are necessary but not sufficient; they won’t exercise the Akamai → ELB path.
-4. **Document the pairing**: ELB policy name ↔ Akamai property TLS mode, so the next change isn’t a surprise.
-
-There’s no fancy automation in this story yet — the “automation” is really **process**: treat ELB TLS policy changes as a cross-team change that includes Akamai config review.
-
-## Lessons learned
-
-1. **TLS policy is a contract between hops.** Certificate validity isn’t enough; both sides must agree on protocol version and cipher negotiation.
-2. **“TLS 1.3 only” is not universally safe at the edge.** Upstream CDNs and legacy integration paths often still expect 1.2 fallback behavior.
-3. **Split-brain symptoms narrow the search.** Internal OK + external broken → look at CDN, WAF, and LB in that order, not the backend first.
-4. **Vendor “cert issue” hints aren’t always wrong, but verify the delta.** Ask: *what changed in the last deploy/maintenance window?* Policy updates count.
-5. **Communicate before you change edge TLS.** Any external LB TLS policy update should trigger an Akamai property review (and vice versa if Akamai TLS settings change).
-
-## Takeaway
-
-A one-line TLS policy change on the external load balancer — moving to TLS 1.3 only — was enough to break every Akamai-fronted frontend, even though nginx and certificates were untouched. The fix was restoring a **dual 1.2/1.3 policy** and establishing a rule: **edge TLS changes always get paired with Akamai configuration review.**
-
-If you’ve seen “random” external outages while internal health checks stay green, add TLS policy parity to your runbook before you reissue a single certificate.
-
----
-
-*Status: resolved. Remember: whenever the external LB TLS policy is updated, coordinate with Akamai for the corresponding property change.*
-
----
-
-I can also produce a shorter “incident summary” version for Confluence/DocLogs, or add a mermaid sequence diagram of the failed vs successful handshake if you want that next.
+I'm marking this one complete, but the runbook note is the part that matters for the next person: check LB TLS policy against Akamai's supported cipher/protocol set *before* you assume the cert is bad.
