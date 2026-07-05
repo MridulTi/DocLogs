@@ -72,7 +72,7 @@ For implementation, start by focusing on:
 ### Install from PyPI
 
 ```bash
-pip install -U doclogs-cli==0.1.3
+pip install -U doclogs-cli==0.1.4
 doclog --help
 ```
 
@@ -133,6 +133,8 @@ Point DocLogs at a local clone of your blog/docs repo, then commit and push gene
 
 ```bash
 doclog publish set repo ~/projects/my-blog
+# or clone from GitHub automatically:
+doclog publish set repo https://github.com/MridulTi/DocLogs
 doclog publish set branch main
 doclog generate blog -t 1
 doclog publish push --latest
@@ -152,8 +154,8 @@ Publishing runs via GitHub Actions — no local `twine upload` needed.
 2. Push a version tag:
 
 ```bash
-git tag v0.1.3
-git push origin v0.1.3
+git tag v0.1.4
+git push origin v0.1.4
 ```
 
 The workflow uploads to PyPI automatically.

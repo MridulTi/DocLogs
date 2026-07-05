@@ -147,6 +147,8 @@ SYNTAX: dict[str, CommandSyntax] = {
         examples=(
             "doclog publish",
             "doclog publish set repo ~/projects/my-blog",
+            "doclog publish set repo https://github.com/MridulTi/DocLogs",
+            "doclog publish set repo git@github.com:MridulTi/DocLogs.git",
             "doclog publish push --latest",
             "doclog publish --syntax",
         ),
@@ -157,11 +159,13 @@ SYNTAX: dict[str, CommandSyntax] = {
         usage="doclog publish set KEY VALUE",
         options=(
             "KEY     repo | branch | remote | subdir",
-            "VALUE   Path or string value",
+            "VALUE   Local clone path or git URL (https / git@)",
             "--syntax   Show this help with examples",
         ),
         examples=(
             "doclog publish set repo ~/projects/my-blog",
+            "doclog publish set repo https://github.com/MridulTi/DocLogs",
+            "doclog publish set repo git@github.com:MridulTi/DocLogs.git",
             "doclog publish set branch main",
             "doclog publish set remote origin",
             "doclog publish set subdir posts",

@@ -33,6 +33,12 @@ def cache_dir() -> Path:
     return path
 
 
+def publish_repos_dir() -> Path:
+    path = doclog_home() / "publish" / "repos"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
 def prompts_dir() -> Path:
     return TEMPLATES_DIR
 
