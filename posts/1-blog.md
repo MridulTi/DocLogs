@@ -1,37 +1,49 @@
-# When TLS 1.3-only broke everything behind Akamai
+# Jenkins couldn't clone our repo — until we counted the SSH keys
 
-The alert wasn't subtle. Requests just stopped hitting our backend nginx box. Internal traffic from our own domains kept flowing, but anything coming in through Akamai-hosted domains — routed via the External LB — went dead. Several frontends all depended on that backend, so they went down together.
+The build job had been sitting in "checkout" for twenty minutes. No error banner, no obvious credential failure in Jenkins — just a hung SCM step and a repo that wouldn't come down. We'd seen this pattern before when keys were wrong or missing, but this time the keys were *right*. At least, three of them were.
 
-We run nginx in front of a shared backend that multiple application frontends talk to. Under normal conditions, Akamai terminates at the edge, traffic crosses the External LB, and nginx forwards to the app tier. Internal paths bypass that edge path entirely, which is why the split behavior was our first real clue: the nginx box wasn't universally broken. Something in the Akamai → External LB path was failing.
+## The setup that looked fine
 
-## Chasing the wrong certificate
+One of our Jenkins jobs talks to Bitbucket over SSH with SCM credentials set to **none**. That means Jenkins doesn't inject a stored credential; it uses whatever SSH identity the job's OS user picks up — typically from `~/.ssh/config` and the keys sitting next to it.
 
-We started from the frontend boxes and ran curls against the backend path. The failures looked like they were getting cut off at Akamai — not nginx, not the app. That pointed outward, not inward.
+That user had several RSA keys configured. We'd verified three of them against Bitbucket and they worked when tested manually. Clone from my laptop, clone as a different user on the same server, compare `~/.ssh` layouts — nothing obvious jumped out. Same host, same repo URL, same kind of config. The job user just couldn't get a clean checkout.
 
-We opened a ticket with Akamai. Their read was an SSL certificate problem. That didn't sit right. We hadn't rotated certs, renewed anything, or touched the cert chain on our side. If nothing on the certificate had changed, why would Akamai suddenly start rejecting handshakes?
+Impact was straightforward: the pipeline never got past source control, so we couldn't produce a build of the app repo at all.
 
-We kept digging anyway. The Akamai angle was real — requests really were dying at their edge — but "certificate issue" felt like a symptom label, not the mechanism.
+## Chasing ghosts
 
-## The policy mismatch
+We burned time on the usual suspects. Wrong key? Didn't look like it — we'd already proven multiple keys were valid. Permissions on `~/.ssh`? File ownership? Jenkins user vs. deploy user? We lined up configs side by side with other accounts on the box and still couldn't spot a meaningful difference.
 
-While we were going back and forth, someone pulled up the External LB TLS security policy. That was the turn.
+The break came when we simplified the experiment: run the clone with **one** key in play. It worked. Add the full set of keys back into `ssh_config` and it failed again.
 
-The LB had been set to **TLS 1.3 only**. At Akamai, the property was on their default supported policy — the one that negotiates down through **1.2 → 1.1 → 1.0**, not a strict 1.3-only handshake.
+That narrowed it from "Jenkins is broken" to "something about having *multiple* identities available."
 
-TLS 1.3-only on the load balancer means the server side of the handshake insists on 1.3. Akamai's side, configured for broader compatibility, wasn't going to meet it there. The handshake never completed. From the outside it looked like Akamai was cutting requests off — and in a sense it was, because the TLS negotiation failed before anything useful got through. Easy to misread as "SSL cert broken" when the real failure mode is protocol policy mismatch.
+## What SSH was actually doing
 
-We hadn't changed certificates. We had changed (or inherited) a TLS policy that didn't match what Akamai could speak on that property.
+OpenSSH doesn't round-robin keys until one can read your repo. It walks the configured identities in order. For each key, it asks the server: does this authenticate?
 
-## What fixed it
+All of our keys were registered in Bitbucket — but under different users, and not every user had access to **this** repository. The first key in the list successfully authenticated to Bitbucket's SSH endpoint. From SSH's point of view, that was success. It never moved on to the next key.
 
-We rolled the External LB TLS security policy back to one that supports **both TLS 1.2 and TLS 1.3**. After that change, traffic from Akamai-hosted domains started reaching nginx again, and the dependent frontends came back.
+So we had a failure mode that *looked* like a permissions or credential problem but was really an **identity ordering** problem: auth succeeded, authorization for the repo did not, and the client had no reason to try the key that actually had access.
 
-No nginx reload drama, no cert redeploy — just aligning the LB's minimum/maximum protocol behavior with what the Akamai property actually negotiates.
+Once we saw that, the stuck job made sense. Jenkins wasn't hanging on a bad password; it was stuck behind an SSH handshake that had already committed to the wrong identity.
 
-## What I'm keeping in my head
+## What we changed
 
-The split between internal (working) and Akamai (broken) saved us from burning time on nginx config. But "Akamai says certificate" plus "we didn't touch certs" should have pushed us to TLS policy sooner.
+We didn't need a clever Jenkins plugin fix. We needed SSH to present the right key — or for every key we expose to be able to do the job.
 
-The operational bit I care about: **any time we change TLS policy on the External LB, we need to coordinate with whoever owns the Akamai property config.** Edge and origin have to agree on what handshake they're willing to do. A 1.3-only LB in front of an Akamai property still on broad compatibility isn't a subtle drift — it's a hard cutoff.
+Concretely, that means one of:
 
-I'm marking this one complete, but the runbook note is the part that matters for the next person: check LB TLS policy against Akamai's supported cipher/protocol set *before* you assume the cert is bad.
+- **One key** for the Jenkins user across the repos it needs to touch, or
+- **Every key** listed in `ssh_config` must have access to every repo that user clones, or
+- All those keys belong to the **same Bitbucket account** that owns the access you expect
+
+We trimmed the config so the job user only offered the identity that actually had rights to the app repo. After that, checkout finished in seconds and builds started moving again.
+
+If you're on a shared CI host with a fat `~/.ssh/config`, it's worth a quick audit: list the `IdentityFile` entries in order and ask, for each one, "if SSH stops here, can this key clone *every* repo this user needs?" The first match wins. Bitbucket won't ask for a second key just because the first one can't read your project.
+
+## What I'd do differently next time
+
+When SCM creds are `none`, the debugging surface isn't Jenkins — it's the OS user's SSH identity stack. I'd test with `GIT_SSH_COMMAND="ssh -v"` early and watch which key gets offered first, instead of assuming "key works in isolation" implies "key works in production config."
+
+And I'd treat "multiple valid Bitbucket keys on one machine" as a smell, not a convenience. They can all authenticate. They can't all authorize. SSH won't sort that out for you.
