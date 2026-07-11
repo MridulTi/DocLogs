@@ -1,49 +1,37 @@
-# Jenkins couldn't clone our repo — until we counted the SSH keys
+# Jenkins couldn't clone our repo — and the SSH key was fine
 
-The build job had been sitting in "checkout" for twenty minutes. No error banner, no obvious credential failure in Jenkins — just a hung SCM step and a repo that wouldn't come down. We'd seen this pattern before when keys were wrong or missing, but this time the keys were *right*. At least, three of them were.
+The job had been sitting in "checkout" for twenty minutes. No error banner, no obvious credential failure — just a hung SCM step while Jenkins tried to clone the app repo. We'd seen flaky network before, but this one kept reproducing on the same agent, same branch, same everything.
 
-## The setup that looked fine
+## The setup nobody questions until it breaks
 
-One of our Jenkins jobs talks to Bitbucket over SSH with SCM credentials set to **none**. That means Jenkins doesn't inject a stored credential; it uses whatever SSH identity the job's OS user picks up — typically from `~/.ssh/config` and the keys sitting next to it.
+Our Jenkins job was configured with SCM credentials set to **none**. That means clone auth comes from whatever SSH identity the job user has on the agent — not a stored Jenkins credential. On that box we had an `ssh_config` with several RSA keys listed. Three of them we'd used successfully elsewhere. The key itself wasn't the mystery; when we forced a single key, clone worked.
 
-That user had several RSA keys configured. We'd verified three of them against Bitbucket and they worked when tested manually. Clone from my laptop, clone as a different user on the same server, compare `~/.ssh` layouts — nothing obvious jumped out. Same host, same repo URL, same kind of config. The job user just couldn't get a clean checkout.
+We compared the job user against other users on the server. Same OS, same Jenkins agent, same rough SSH layout. Nothing jumped out. That part was genuinely frustrating — it looked like a user-level misconfiguration, but the diff never materialized.
 
-Impact was straightforward: the pipeline never got past source control, so we couldn't produce a build of the app repo at all.
+## SSH succeeded too early
 
-## Chasing ghosts
+The breakthrough wasn't "wrong key." It was **too many keys that all looked valid**.
 
-We burned time on the usual suspects. Wrong key? Didn't look like it — we'd already proven multiple keys were valid. Permissions on `~/.ssh`? File ownership? Jenkins user vs. deploy user? We lined up configs side by side with other accounts on the box and still couldn't spot a meaningful difference.
+Every key in our config was registered to *some* Bitbucket account. SSH would walk the list, pick the first one Bitbucket accepted, and stop. Authentication succeeded. From SSH's point of view, the handshake was done.
 
-The break came when we simplified the experiment: run the clone with **one** key in play. It worked. Add the full set of keys back into `ssh_config` and it failed again.
+But Bitbucket auth and repo access aren't the same thing. The first matching key might belong to an account that can log into Bitbucket but **doesn't have permission on this repository**. SSH never falls through to the next key — it already got a successful auth response — so clone hangs or fails in a way that doesn't scream "permissions."
 
-That narrowed it from "Jenkins is broken" to "something about having *multiple* identities available."
+When we trimmed the config down to a single key — one we knew had access to that repo — the job unstuck immediately. Same server, same user, same Jenkins job. The only change was how many identities we offered.
 
-## What SSH was actually doing
-
-OpenSSH doesn't round-robin keys until one can read your repo. It walks the configured identities in order. For each key, it asks the server: does this authenticate?
-
-All of our keys were registered in Bitbucket — but under different users, and not every user had access to **this** repository. The first key in the list successfully authenticated to Bitbucket's SSH endpoint. From SSH's point of view, that was success. It never moved on to the next key.
-
-So we had a failure mode that *looked* like a permissions or credential problem but was really an **identity ordering** problem: auth succeeded, authorization for the repo did not, and the client had no reason to try the key that actually had access.
-
-Once we saw that, the stuck job made sense. Jenkins wasn't hanging on a bad password; it was stuck behind an SSH handshake that had already committed to the wrong identity.
+That explained why one-key worked and many-keys didn't, and why comparing users across the server didn't help: the failure mode depends on key order and which Bitbucket accounts those keys map to, not on anything obvious in `/etc/passwd`.
 
 ## What we changed
 
-We didn't need a clever Jenkins plugin fix. We needed SSH to present the right key — or for every key we expose to be able to do the job.
+We picked one of two sane policies and stuck to it:
 
-Concretely, that means one of:
+1. **One key for SCM** — the job user's `ssh_config` should expose a single identity for Bitbucket, and that key must have access to every repo that user needs to clone.
 
-- **One key** for the Jenkins user across the repos it needs to touch, or
-- **Every key** listed in `ssh_config` must have access to every repo that user clones, or
-- All those keys belong to the **same Bitbucket account** that owns the access you expect
+2. **Or, every key in the config must be equivalent** — if you keep multiple keys, each one needs repo access (or they all need to live under the same Bitbucket account with the right permissions). Otherwise the first match wins and the rest never get tried.
 
-We trimmed the config so the job user only offered the identity that actually had rights to the app repo. After that, checkout finished in seconds and builds started moving again.
+We went with option one for the Jenkins job user. Less surface area, and the failure mode is easier to reason about next time.
 
-If you're on a shared CI host with a fat `~/.ssh/config`, it's worth a quick audit: list the `IdentityFile` entries in order and ask, for each one, "if SSH stops here, can this key clone *every* repo this user needs?" The first match wins. Bitbucket won't ask for a second key just because the first one can't read your project.
+## The thing I'll actually remember
 
-## What I'd do differently next time
+"SSH works" and "I can clone this repo" are different questions. With multiple keys, SSH stops at the first account Bitbucket recognizes — even if that account can't see your project.
 
-When SCM creds are `none`, the debugging surface isn't Jenkins — it's the OS user's SSH identity stack. I'd test with `GIT_SSH_COMMAND="ssh -v"` early and watch which key gets offered first, instead of assuming "key works in isolation" implies "key works in production config."
-
-And I'd treat "multiple valid Bitbucket keys on one machine" as a smell, not a convenience. They can all authenticate. They can't all authorize. SSH won't sort that out for you.
+If you run Jenkins with `none` credentials and lean on the agent user's keys, audit the whole chain: what's in `ssh_config`, what order keys are tried, and whether **every** key that might win the race can actually reach **every** repo that job touches. We lost a morning to a key that was correct for Bitbucket and wrong for the repository.
