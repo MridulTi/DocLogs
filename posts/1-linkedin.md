@@ -1,62 +1,33 @@
-Here are a few LinkedIn-ready options based on your story. Pick the tone that fits you best.
+Here’s a LinkedIn post drafted from your template:
 
 ---
 
-### Option 1 — Short & punchy
+**When the right SSH key still fails — and why “more keys” made it worse**
 
-**When traffic stops, the cause isn’t always where you look.**
+We hit a frustrating Jenkins issue: a job using SCM with no explicit credentials, so it relied on the build user’s SSH keys. Three keys in `~/.ssh/config` were known to work elsewhere, but cloning the app repo kept failing — and builds got stuck.
 
-We had a sudden outage: internal requests were fine, but traffic from our CDN stopped reaching the backend entirely. Multiple frontends went down with it.
+We compared configs with other users on the same server. Nothing obvious stood out. Single-key tests worked. Multiple keys did not.
 
-After ruling out the app layer, we traced the failure to the CDN edge — not our nginx or backend. Their team pointed to TLS, but nothing on our cert side had changed.
+The root cause was subtle: **SSH stops after the first key that successfully authenticates to the server** — even if that key doesn’t have access to the repo. Every key in our config was tied to a Bitbucket account, so the first one could log in to Bitbucket but lacked permission for that repository. SSH never tried the others.
 
-The real issue? A mismatch in TLS security policies. Our external load balancer had been updated to **TLS 1.3 only**. The CDN was configured for broader compatibility (1.2 → 1.1 → 1.0). TLS 1.3-only expects a 1.3 handshake; the CDN couldn’t complete it, so connections were dropped before they ever hit our stack.
+**Fix:** Use one key per repo (or ensure every key in the config has access to every repo it might touch, ideally under the same Bitbucket account).
 
-**Fix:** Align the LB policy to support both TLS 1.2 and 1.3. Traffic restored immediately.
-
-**Lesson:** Infrastructure changes don’t live in isolation. Any TLS policy update on the origin side needs a coordinated check with your CDN team.
+**Takeaway:** Authentication success ≠ authorization success. When SSH has many keys, the first match wins — and the wrong one can block the right one silently.
 
 ---
 
-### Option 2 — Slightly more narrative
-
-**A TLS policy change broke production — and it looked like a backend outage.**
-
-Requests from internal domains kept flowing. Requests from our Akamai-hosted domains didn’t. Several application frontends that depended on one backend nginx box went dark at once.
-
-We spent time on the wrong layer first — curls from the frontend, nginx checks, the usual suspects. The breakthrough came when we realized Akamai was cutting off the connection before it reached us. They flagged SSL, but our certificates hadn’t changed.
-
-Root cause: our external LB TLS policy had been set to **TLS 1.3 only**, while Akamai was on a compatibility mode that negotiates down from 1.2. No overlap → failed handshake → silent drop.
-
-Rolling the LB policy back to **TLS 1.2 + 1.3** fixed it on the spot.
-
-**Takeaway for infra teams:** TLS policy updates on your load balancer aren’t a local change. Loop in your CDN partner before you flip the switch.
+**Shorter version** (if you want something punchier):
 
 ---
 
-### Option 3 — One-liner hook + bullets (good for engagement)
+**SSH taught us a lesson: the first key that works isn’t always the right one.**
 
-**Internal traffic worked. CDN traffic didn’t. Same backend. Different TLS handshake.**
+A Jenkins job couldn’t clone our app repo even though our SSH keys looked fine. Builds stalled. Single-key tests passed; multi-key setups failed.
 
-What happened:
-- External LB TLS policy → TLS 1.3 only  
-- CDN → compatibility mode (1.2 and below)  
-- Handshake failed at the edge; requests never reached nginx  
+Turns out every key could authenticate to Bitbucket, but not every key had repo access. SSH uses the first key that authenticates — and never tries the rest.
 
-What we learned:
-- A “small” LB config change can take down every CDN-facing frontend  
-- Always coordinate TLS policy changes with your CDN team  
-
-Glad this one’s resolved — and documented for next time.
+**Lesson:** One key per repo, or make sure every configured key can access every repo it might hit.
 
 ---
 
-### Hashtag suggestions (optional, 3–5 max)
-
-`#DevOps` `#SiteReliability` `#Infrastructure` `#IncidentResponse` `#TLS`
-
----
-
-**Sanitization note:** These drafts avoid internal hostnames, domain names, and team-specific tooling. If you want a more personal voice, add one line like *“Spent a good hour convinced nginx was the problem…”* — that reads well on LinkedIn without exposing internals.
-
-Want a version tailored to a specific audience (hiring managers, SRE peers, or leadership)? I can adjust tone and length.
+Want this tuned for a specific tone (more technical, more leadership-focused, or with a hook for engagement)? I can adjust it.
