@@ -4,6 +4,7 @@ import re
 import shutil
 import subprocess
 from dataclasses import dataclass
+from datetime import date
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -331,12 +332,19 @@ def _sync_publish_clone(repo_root: Path, config: PublishConfig) -> str:
     )
 
 
+def _publish_dest_dir(repo_root: Path, config: PublishConfig) -> Path:
+    day = date.today().isoformat()
+    dest_dir = repo_root / config.subdir / day
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    return dest_dir
+
+
 def push_post(
     post_file: Path,
     config: PublishConfig,
     *,
     message: str | None = None,
-) -> tuple[Path, str]:
+) -> tuple[Path, str, str]:
     if config.repo_path is None:
         raise PublishError(
             "Publish repo is not configured. Run:\n"
@@ -355,8 +363,7 @@ def push_post(
     except ValueError as exc:
         raise PublishError(str(exc)) from exc
 
-    dest_dir = repo_root / config.subdir
-    dest_dir.mkdir(parents=True, exist_ok=True)
+    dest_dir = _publish_dest_dir(repo_root, config)
     dest_file = dest_dir / post_file.name
     shutil.copy2(post_file, dest_file)
 
@@ -380,7 +387,7 @@ def push_post(
         push_reason = "pushed existing local commits"
     else:
         raise PublishError(
-            f"No changes to publish for {dest_file.name} (already up to date on {branch!r})."
+            f"No changes to publish for {rel_path} (already up to date on {branch!r})."
         )
 
     push = _run_git(["push", config.remote, f"HEAD:{branch}"], repo_root)
@@ -397,4 +404,4 @@ def push_post(
             f"Target: {config.repo_url or repo_root} ({config.remote}/{branch})"
         )
 
-    return dest_file, push_reason
+    return dest_file, push_reason, rel_path

@@ -174,7 +174,7 @@ SYNTAX: dict[str, CommandSyntax] = {
     ),
     "publish push": CommandSyntax(
         name="publish push",
-        summary="Copy a post to the publish repo, commit, and push.",
+        summary="Copy a post to posts/YYYY-MM-DD/ in the publish repo, commit, and push.",
         usage="doclog publish push [POST] [OPTIONS]",
         options=(
             "POST              Path to generated post (optional with --latest)",

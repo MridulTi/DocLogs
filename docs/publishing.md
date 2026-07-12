@@ -2,7 +2,7 @@
 
 Use GitHub Actions so uploads happen from GitHub (avoids corporate SSL issues on local machines).
 
-**Latest release:** `0.1.9` — https://pypi.org/project/doclogs-cli/0.1.9/
+**Latest release:** `0.1.10` — https://pypi.org/project/doclogs-cli/0.1.10/
 
 ## One-time PyPI setup (trusted publishing)
 
@@ -27,8 +27,8 @@ Do **not** set a GitHub Environment unless you also configure one on PyPI — a 
 Push a version tag — the workflow runs automatically:
 
 ```bash
-git tag v0.1.9
-git push origin v0.1.9
+git tag v0.1.10
+git push origin v0.1.10
 ```
 
 Or run manually: GitHub → **Actions** → **Publish to PyPI** → **Run workflow**.
@@ -38,17 +38,17 @@ Or run manually: GitHub → **Actions** → **Publish to PyPI** → **Run workfl
 Edit `version` in `pyproject.toml`, commit, tag, push:
 
 ```bash
-# pyproject.toml: version = "0.1.9"
+# pyproject.toml: version = "0.1.10"
 git add pyproject.toml
-git commit -m "Bump version to 0.1.9"
-git tag v0.1.9
+git commit -m "Bump version to 0.1.10"
+git tag v0.1.10
 git push origin main --tags
 ```
 
 ## Verify
 
 ```bash
-pip install -U doclogs-cli==0.1.9
+pip install -U doclogs-cli==0.1.10
 doclog --help
 ```
 

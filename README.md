@@ -72,7 +72,7 @@ For implementation, start by focusing on:
 ### Install from PyPI
 
 ```bash
-pip install -U doclogs-cli==0.1.9
+pip install -U doclogs-cli==0.1.10
 doclog --help
 ```
 
@@ -129,7 +129,9 @@ Ensure Cursor/Copilot CLI is installed and authenticated when using those provid
 
 ### Publish a post to git
 
-Point DocLogs at a local clone of your blog/docs repo, then commit and push generated posts:
+Point DocLogs at a local clone of your blog/docs repo, then commit and push generated posts.
+Each push copies the file under `posts/YYYY-MM-DD/` (today's date) so re-publishing the same
+filename on a later day does not overwrite an earlier version.
 
 ```bash
 doclog publish set repo ~/projects/my-blog
@@ -154,8 +156,8 @@ Publishing runs via GitHub Actions — no local `twine upload` needed.
 2. Push a version tag:
 
 ```bash
-git tag v0.1.9
-git push origin v0.1.9
+git tag v0.1.10
+git push origin v0.1.10
 ```
 
 The workflow uploads to PyPI automatically.

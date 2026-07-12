@@ -21,7 +21,7 @@ def _show_publish_config() -> None:
         typer.echo(f"  repo_url: {config.repo_url}")
     typer.echo(f"  branch:   {config.branch}  (git branch to push to)")
     typer.echo(f"  remote:   {config.remote}")
-    typer.echo(f"  subdir:   {config.subdir}  (folder inside repo for posts)")
+    typer.echo(f"  subdir:   {config.subdir}/YYYY-MM-DD/  (dated folders for posts)")
     typer.echo("")
     typer.echo("Configure:")
     typer.echo("  doclog publish set repo ~/projects/my-blog")
@@ -68,7 +68,7 @@ def register(app: typer.Typer):
             elif resolved.action == "rebased":
                 typer.echo("  (existing clone rebased onto origin)")
 
-    @publish_app.command("push", help="Copy a post into the publish repo, commit, and push.")
+    @publish_app.command("push", help="Copy a post into the publish repo under posts/YYYY-MM-DD/, commit, and push.")
     def publish_push(
         post: Optional[Path] = typer.Argument(
             None,
@@ -92,14 +92,14 @@ def register(app: typer.Typer):
         try:
             post_file = resolve_post_file(post, latest=latest)
             config = load_publish_config()
-            dest, push_reason = push_post(post_file, config, message=message)
+            _, push_reason, rel_path = push_post(post_file, config, message=message)
         except PublishError as exc:
             typer.echo(str(exc))
             raise typer.Exit(code=1) from exc
 
         target = config.repo_url or str(config.repo_path)
         typer.echo(f"Published {post_file.name} ({push_reason})")
-        typer.echo(f"  copied to {config.subdir}/{dest.name}")
+        typer.echo(f"  copied to {rel_path}")
         typer.echo(f"  pushed to {target} ({config.remote}/{config.branch})")
 
     app.add_typer(publish_app, name="publish")
