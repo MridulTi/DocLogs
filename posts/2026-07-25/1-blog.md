@@ -1,10 +1,10 @@
 # The cron was fine — our log lifecycle was eating 51 GB of ghost disk
 
-The third pager this week landed at 2:47 AM with the same subject line: root filesystem on `devopsdevops-devops-v1-8-77` at 97%. I'd already verified the hourly S3 upload cron twice. `sudo crontab -l` showed the job firing at `:30` every hour. `sudo tail /var/log/pod-s3-upload.log` had entries — not silence, not permission errors, just the steady rhythm of a script that was supposedly doing its job. That mismatch is what kept me awake. The disk was lying about something, or the cleanup pipeline was lying about success.
+The third pager this week landed at 2:47 AM with the same subject line: root filesystem  at 97%. I'd already verified the hourly S3 upload cron twice. `sudo crontab -l` showed the job firing at `:30` every hour. `sudo tail /var/log/pod-s3-upload.log` had entries — not silence, not permission errors, just the steady rhythm of a script that was supposedly doing its job. That mismatch is what kept me awake. The disk was lying about something, or the cleanup pipeline was lying about success.
 
 ## What this box actually does
 
-This server is the central Logstash node for  EKS pod logs. Filebeat ships container logs to Kafka; Logstash consumes them and writes to two sinks: Elasticsearch for search, and local files under `/var/log/pod-logs-for-s3/{app}/{app}-YYYY-MM-dd-logstash-8-77.log` for archival. An hourly cron runs `pod_logs_upload_to_s3.sh`, which zstd-compresses those files and pushes them to `s3://-eks-prod-app-logs/containers-logs-prod/`. Logrotate config lives at `/etc/logrotate.d/eks-app-logs`. The Logstash file output config is in `/etc/logstash/conf.d/logs-output-to-files.conf`.
+This server is the central Logstash node for  EKS pod logs. Filebeat ships container logs to Kafka; Logstash consumes them and writes to two sinks: Elasticsearch for search, and local files under `/var/log/pod-logs-for-s3/{app}/{app}-YYYY-MM-dd-logstash.log` for archival. An hourly cron runs `pod_logs_upload_to_s3.sh`, which zstd-compresses those files and pushes them to `s3://-eks-prod-app-logs/containers-logs-prod/`. Logrotate config lives at `/etc/logrotate.d/eks-app-logs`. The Logstash file output config is in `/etc/logstash/conf.d/logs-output-to-files.conf`.
 
 On paper it's a straightforward pipeline: ingest, rotate, upload, delete. In practice we'd patched three different things across three incidents and the disk kept filling anyway. That pattern usually means you're fixing symptoms at each layer without seeing the whole stack.
 
@@ -22,9 +22,9 @@ sudo lsof +L1 | grep pod-logs-for-s3
 
 There it was. Deleted inodes still held open by Logstash's Java PID, and they were still growing:
 
-- `-app` — ~22 GB
-- `-app` — ~12 GB  
-- `` — ~7 GB
+- `jam-app` — ~22 GB
+- `xy-app` — ~12 GB  
+- zgy`` — ~7 GB
 
 The upload script had successfully deleted active `.log` files while Logstash still had them open. From the filesystem's perspective those bytes were gone — `du` couldn't see them. From the kernel's perspective they were very much allocated until the process released the file descriptors. Classic ghost disk.
 
@@ -42,7 +42,7 @@ zstd error 27: Incomplete read
 
 Upload failed. Files stayed local. Disk kept growing.
 
-There was another logic trap in the same script. It skipped today's and yesterday's files unless they were already >= 2048MB. On a node where `-app` alone was ingesting around 2.2 MB/s — roughly 190 GB/day of potential write volume if everything landed on disk — "wait until it's big enough" meant logs accumulated all day and then failed when we finally tried to touch them. `-app` at ~772 KB/s and `` at ~619 KB/s weren't as dramatic individually, but they compounded the same pattern.
+There was another logic trap in the same script. It skipped today's and yesterday's files unless they were already >= 2048MB. On a node where `jab-app` alone was ingesting around 2.2 MB/s — roughly 190 GB/day of potential write volume if everything landed on disk — "wait until it's big enough" meant logs accumulated all day and then failed when we finally tried to touch them. `xy-app` at ~2 KB/s and `` at ~619 KB/s weren't as dramatic individually, but they compounded the same pattern.
 
 We were compressing the wrong files at the wrong time. Active `.log` files belong to Logstash. The upload script had no business opening them.
 
@@ -96,7 +96,7 @@ Because `maxsize` triggers on size rather than just the calendar, logrotate need
 
 One-time cleanup on the box: restart Logstash (release ghost inodes), `logrotate -f` to normalize state, manual run of the upload script to drain backlog.
 
-The mechanism that makes this work is boring on purpose. Logstash appends to `app-YYYY-MM-dd-logstash-8-77.log`. At `:05`, logrotate copy-truncates when size or daily threshold hits, leaving `app-....log.1` as a closed snapshot. At `:35`, the upload script compresses that closed snapshot, pushes to S3, deletes local. Logstash never loses its file handle. We never delete a path the JVM still thinks it owns.
+The mechanism that makes this work is boring on purpose. Logstash appends to `app-YYYY-MM-dd-logstash-8-.log`. At `:05`, logrotate copy-truncates when size or daily threshold hits, leaving `app-....log.1` as a closed snapshot. At `:35`, the upload script compresses that closed snapshot, pushes to S3, deletes local. Logstash never loses its file handle. We never delete a path the JVM still thinks it owns.
 
 ## What I'd watch differently now
 
