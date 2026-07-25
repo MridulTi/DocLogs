@@ -4,7 +4,7 @@ The third pager this week landed at 2:47 AM with the same subject line: root fil
 
 ## What this box actually does
 
-This server is the central Logstash node for FSM EKS pod logs. Filebeat ships container logs to Kafka; Logstash consumes them and writes to two sinks: Elasticsearch for search, and local files under `/var/log/pod-logs-for-s3/{app}/{app}-YYYY-MM-dd-logstash-8-77.log` for archival. An hourly cron runs `pod_logs_upload_to_s3.sh`, which zstd-compresses those files and pushes them to `s3://fsm-eks-prod-app-logs/containers-logs-prod/`. Logrotate config lives at `/etc/logrotate.d/eks-app-logs`. The Logstash file output config is in `/etc/logstash/conf.d/logs-output-to-files.conf`.
+This server is the central Logstash node for  EKS pod logs. Filebeat ships container logs to Kafka; Logstash consumes them and writes to two sinks: Elasticsearch for search, and local files under `/var/log/pod-logs-for-s3/{app}/{app}-YYYY-MM-dd-logstash-8-77.log` for archival. An hourly cron runs `pod_logs_upload_to_s3.sh`, which zstd-compresses those files and pushes them to `s3://-eks-prod-app-logs/containers-logs-prod/`. Logrotate config lives at `/etc/logrotate.d/eks-app-logs`. The Logstash file output config is in `/etc/logstash/conf.d/logs-output-to-files.conf`.
 
 On paper it's a straightforward pipeline: ingest, rotate, upload, delete. In practice we'd patched three different things across three incidents and the disk kept filling anyway. That pattern usually means you're fixing symptoms at each layer without seeing the whole stack.
 
@@ -22,9 +22,9 @@ sudo lsof +L1 | grep pod-logs-for-s3
 
 There it was. Deleted inodes still held open by Logstash's Java PID, and they were still growing:
 
-- `fsm-app` — ~22 GB
-- `tms-app` — ~12 GB  
-- `adas` — ~7 GB
+- `-app` — ~22 GB
+- `-app` — ~12 GB  
+- `` — ~7 GB
 
 The upload script had successfully deleted active `.log` files while Logstash still had them open. From the filesystem's perspective those bytes were gone — `du` couldn't see them. From the kernel's perspective they were very much allocated until the process released the file descriptors. Classic ghost disk.
 
@@ -42,7 +42,7 @@ zstd error 27: Incomplete read
 
 Upload failed. Files stayed local. Disk kept growing.
 
-There was another logic trap in the same script. It skipped today's and yesterday's files unless they were already >= 2048MB. On a node where `fsm-app` alone was ingesting around 2.2 MB/s — roughly 190 GB/day of potential write volume if everything landed on disk — "wait until it's big enough" meant logs accumulated all day and then failed when we finally tried to touch them. `tms-app` at ~772 KB/s and `adas` at ~619 KB/s weren't as dramatic individually, but they compounded the same pattern.
+There was another logic trap in the same script. It skipped today's and yesterday's files unless they were already >= 2048MB. On a node where `-app` alone was ingesting around 2.2 MB/s — roughly 190 GB/day of potential write volume if everything landed on disk — "wait until it's big enough" meant logs accumulated all day and then failed when we finally tried to touch them. `-app` at ~772 KB/s and `` at ~619 KB/s weren't as dramatic individually, but they compounded the same pattern.
 
 We were compressing the wrong files at the wrong time. Active `.log` files belong to Logstash. The upload script had no business opening them.
 
@@ -62,7 +62,7 @@ We had two independent systems both trying to manage lifecycle — rotate with c
 
 ## Layer four: the firehose we weren't accounting for
 
-Even with lifecycle bugs fixed, the volume math was ugly. Logstash's file output writes every event to disk regardless of whether Elasticsearch accepts it. ES was rejecting 39k+ events on `fsm-zm` indices — `mapper_parsing_exception` on a marker field — but those events still hit the local pod-log files. Disk pressure wasn't purely an archival bug; it was ingest volume meeting a pipeline that always persists locally.
+Even with lifecycle bugs fixed, the volume math was ugly. Logstash's file output writes every event to disk regardless of whether Elasticsearch accepts it. ES was rejecting 39k+ events on `-zm` indices — `mapper_parsing_exception` on a marker field — but those events still hit the local pod-log files. Disk pressure wasn't purely an archival bug; it was ingest volume meeting a pipeline that always persists locally.
 
 That's a separate fix (mapping correction on the ES side). I mention it because it explained why "reasonable" rotation thresholds still felt tight. This node wasn't archiving a trickle. It was a central drain for multiple high-throughput apps.
 
@@ -104,4 +104,4 @@ The monitoring insight that would have shortened this week: **`df` vs `du` gap m
 
 The golden rule we wrote down for ourselves: active `.log` = Logstash owns it. Only upload `.log.1` rotated snapshots. Never delete a `.log` while Logstash is running — if you need emergency cleanup, restart first so the kernel can actually reclaim the inodes. `copytruncate` + `nocompress` in logrotate; compress once in the upload script after rotation.
 
-We closed the disk runaway. The ES marker mapping on `fsm-zm` indices is still driving rejected-event volume onto disk — that's the next fire. But at least now when the pager fires, I won't spend the first hour proving cron works. I'll check whether something is trying to compress a file that's still moving.
+We closed the disk runaway. The ES marker mapping on `-zm` indices is still driving rejected-event volume onto disk — that's the next fire. But at least now when the pager fires, I won't spend the first hour proving cron works. I'll check whether something is trying to compress a file that's still moving.
