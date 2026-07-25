@@ -62,7 +62,7 @@ We had two independent systems both trying to manage lifecycle — rotate with c
 
 ## Layer four: the firehose we weren't accounting for
 
-Even with lifecycle bugs fixed, the volume math was ugly. Logstash's file output writes every event to disk regardless of whether Elasticsearch accepts it. ES was rejecting 39k+ events on `-zm` indices — `mapper_parsing_exception` on a marker field — but those events still hit the local pod-log files. Disk pressure wasn't purely an archival bug; it was ingest volume meeting a pipeline that always persists locally.
+Even with lifecycle bugs fixed, the volume math was ugly. Logstash's file output writes every event to disk regardless of whether Elasticsearch accepts it. ES was rejecting 39k+ events on `-app` indices — `mapper_parsing_exception` on a marker field — but those events still hit the local pod-log files. Disk pressure wasn't purely an archival bug; it was ingest volume meeting a pipeline that always persists locally.
 
 That's a separate fix (mapping correction on the ES side). I mention it because it explained why "reasonable" rotation thresholds still felt tight. This node wasn't archiving a trickle. It was a central drain for multiple high-throughput apps.
 
@@ -104,4 +104,4 @@ The monitoring insight that would have shortened this week: **`df` vs `du` gap m
 
 The golden rule we wrote down for ourselves: active `.log` = Logstash owns it. Only upload `.log.1` rotated snapshots. Never delete a `.log` while Logstash is running — if you need emergency cleanup, restart first so the kernel can actually reclaim the inodes. `copytruncate` + `nocompress` in logrotate; compress once in the upload script after rotation.
 
-We closed the disk runaway. The ES marker mapping on `-zm` indices is still driving rejected-event volume onto disk — that's the next fire. But at least now when the pager fires, I won't spend the first hour proving cron works. I'll check whether something is trying to compress a file that's still moving.
+We closed the disk runaway. The ES marker mapping on `-app` indices is still driving rejected-event volume onto disk — that's the next fire. But at least now when the pager fires, I won't spend the first hour proving cron works. I'll check whether something is trying to compress a file that's still moving.
