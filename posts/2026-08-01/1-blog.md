@@ -6,9 +6,9 @@ That 404 felt small. It wasn't. It was the first of several places where "we've 
 
 ## What we were actually doing
 
-Our org runs a fleet of Jenkins masters — ump, ci-ump, merchant dashboard EKS, fsm-eks, fsm-prod, atsprod, incentive, promo — spread across accounts and teams. The upgrade goal was straightforward on paper: get everything onto Jenkins 2.568.1 with Java 25, on AL2023, without touching production controllers during the clone phase.
+Our org runs a fleet of Jenkins masters — spread across accounts and teams. The upgrade goal was straightforward on paper: get everything onto Jenkins 2.568.1 with Java 25, on AL2023, without touching production controllers during the clone phase.
 
-We started with ump as the pilot, turned that into a written runbook (`Jenkins-Master-Clone-Runbook.plan.md`), then drove the same phased checklist through all eight hosts. Jira story TMD-23675 tracked the parent work; each instance got its own sub-task and worklog. Calendar time for the full wave came in around one day plus six hours — not because any single host was fast, but because we stopped re-learning the same AL2023 surprises on every box.
+We started with a small account as the pilot, turned that into a written runbook (`Jenkins-Master-Clone-Runbook.plan.md`), then drove the same phased checklist through all eight hosts. Jira story tracked the parent work; each instance got its own sub-task and worklog. Calendar time for the full wave came in around one day plus six hours — not because any single host was fast, but because we stopped re-learning the same AL2023 surprises on every box.
 
 The standard process per controller looked like this:
 
@@ -16,7 +16,7 @@ The standard process per controller looked like this:
 2. EBS snapshot of the source primary volume — no impact on the running master.
 3. Create a volume from the snapshot; attach it as a secondary device on the **target only** (`/dev/xvdf` → nvme), mount read-only at `/mnt/jenkins-clone`.
 4. On the target: install `jenkins-2.568.1` and `java-25-amazon-corretto`; stop and disable Jenkins before copying data; configure the JVM via a systemd drop-in.
-5. Create OS users (`jenkins`, `ops`, `infosec`, …); rsync `JENKINS_HOME`, home `.ssh` directories, and inventoried service configs (`/etc/nginx`, `/opt`, cron, systemd) from the clone mount.
+5. Create OS users (`jenkins`, `ops`, `sec`, …); rsync `JENKINS_HOME`, home `.ssh` directories, and inventoried service configs (`/etc/nginx`, `/opt`, cron, systemd) from the clone mount.
 6. Unmount and detach the secondary volume — but **keep** the snapshot and volume tagged for rollback. Do not delete them.
 7. Enable and start Jenkins plus docker, nginx, and anything else we found in inventory; validate `:8080`, plugins, credentials, and agent nodes.
 8. ELB/target group cutover stayed manual and separate — only after validation passed.
@@ -45,17 +45,17 @@ We also learned to validate Java using the path in `JENKINS_JAVA_CMD` — Corret
 
 Data copy is the long pole. `rsync -a` from the read-only clone mount hit SELinux xattr noise and returned exit code 23. If you treat rsync exit codes as gospel, you'll think you failed when you didn't. We switched to `rsync -a --no-xattrs` and verified by size and file presence instead of trusting the exit code alone.
 
-`atsprod` had a `JENKINS_HOME` north of 13GB. That's hours, not minutes. We ran `nohup rsync` on the target and walked away. Later, after initial clones finished, we delta-synced builds that had landed on source during the first copy window — a follow-up pass worth scheduling explicitly so nobody assumes "rsync completed once" means "data is current."
+one account had a `JENKINS_HOME` north of 13GB. That's hours, not minutes. We ran `nohup rsync` on the target and walked away. Later, after initial clones finished, we delta-synced builds that had landed on source during the first copy window — a follow-up pass worth scheduling explicitly so nobody assumes "rsync completed once" means "data is current."
 
-Ownership drift was the next surprise after copy. AL2 → AL2023 rsync left UID and permission mismatches. Jenkins wouldn't behave correctly until we ran `chown -R jenkins:jenkins` on `/var/lib/jenkins` and aligned `/home/*/.ssh` modes and owners to match source. Jobs that use SSH agents fail in boring, repetitive ways when `.ssh` perms are wrong — we saw that on atsprod first and then checked the pattern everywhere else.
+Ownership drift was the next surprise after copy. AL2 → AL2023 rsync left UID and permission mismatches. Jenkins wouldn't behave correctly until we ran `chown -R jenkins:jenkins` on `/var/lib/jenkins` and aligned `/home/*/.ssh` modes and owners to match source. Jobs that use SSH agents fail in boring, repetitive ways when `.ssh` perms are wrong — we saw that on on account first and then checked the pattern everywhere else.
 
-### The lockout on merchantdashbord-eks
+### The lockout on big account jenkins
 
 This one got my attention.
 
-While merging `authorized_keys` onto the new merchant dashboard EKS target (`.241`), we overwrote instead of merged. SSH locked us out. Source of truth for "don't do that again" is now in the runbook in bold mental ink: **merge keys, keep `target.bak`, never blind overwrite.**
+While merging `authorized_keys` onto the new EKS-jenkins target , we overwrote instead of merged. SSH locked us out. Source of truth for "don't do that again" is now in the runbook in bold mental ink: **merge keys, keep `target.bak`, never blind overwrite.**
 
-Recovery was SSM — break-glass access we had kept available on purpose. After that incident, every target stayed on SSH with SSM as backup. Some sources (like atsprod) didn't even have SSH anymore; inventory and snapshot work went through SSM only on those hosts.
+Recovery was SSM — break-glass access we had kept available on purpose. After that incident, every target stayed on SSH with SSM as backup. Some sources didn't even have SSH anymore; inventory and snapshot work went through SSM only on those hosts.
 
 ### git-client, /tmp, and Permission denied
 
@@ -96,10 +96,10 @@ The practices that actually saved us:
 
 - **Read-only source, write-only target** — no heroics on production boxes.
 - **Rollback artifacts kept on purpose** — snapshot plus detached clone volume until cutover is boring.
-- **A runbook that gets edited mid-flight** — the UMP clone wasn't the finish line; it was the template.
-- **SSM as break-glass** — not theoretical after `.241`.
+- **A runbook that gets edited mid-flight** — the clone wasn't the finish line; it was the template.
+- **SSM as break-glass** — not theoretical after .
 - **Validate before the load balancer** — `:8080` and plugins aren't enough if git checkouts and SSH agents are broken.
 
-If I did it again, I'd bake the delta rsync and `.ssh` ownership checks into the standard Phase 7 checklist instead of treating them as follow-ups. I'd also flag large `JENKINS_HOME` hosts like atsprod upfront in the Jira sub-tasks so nobody schedules cutover conversations before the nohup rsync finishes.
+If I did it again, I'd bake the delta rsync and `.ssh` ownership checks into the standard Phase 7 checklist instead of treating them as follow-ups. I'd also flag large `JENKINS_HOME` hosts upfront in the Jira sub-tasks so nobody schedules cutover conversations before the nohup rsync finishes.
 
-Eight controllers. One consistent 2.568.1 / Java 25 footprint. No source mutations during clone. TMD-23675 closed with sub-tasks TMD-23676 through TMD-23683 and time logged per host. The upgrade wasn't dramatic once the runbook caught up to AL2023's reality — which, honestly, is the best kind of production work.
+Eight controllers. One consistent 2.568.1 / Java 25 footprint. No source mutations during clone. parent Jira closed with sub-tasks and time logged per host. The upgrade wasn't dramatic once the runbook caught up to AL2023's reality — which, honestly, is the best kind of production work.
