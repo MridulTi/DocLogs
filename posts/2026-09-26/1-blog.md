@@ -1,79 +1,79 @@
-# When patch night, log harvesters, and a private ALB all fail in different ways
+# Patch night wasn’t one incident — it was three failure modes in a row
 
-The Slack message wasn’t dramatic: “Filebeat not sending after the ASG refresh.” Same week we were mid-wave on AMI patching across several accounts, Jenkins was red on the frontend build agents again, and promo non-prod EKS was supposed to finish moving private ingress off CIDR rules onto security-group–based ALBs. No single pager owned the week—it was three unrelated failure modes that kept teaching the same lesson: **trust what the metric says**, and **don’t assume the loud error is the root cause**.
+Tuesday’s plan looked boring on paper: run the SSM patch runbooks across a bunch of Auto Scaling Groups, bake AMIs, promote launch templates, go home. By midnight I was still on a call with Jenkins console output in one terminal and `aws autoscaling describe-auto-scaling-groups` in the other. Nobody had paged us for a single catastrophic outage. What we had was worse in a different way — a pile of medium failures that kept teaching the same lesson: **the platform replaces your box faster than you can trust what’s on disk**.
 
-## What was moving
+---
 
-We run a familiar platform stack: ASGs backed by launch templates, SSM-driven patch runbooks (`Patching-ASG`, `NewRunbook`, `Ami-Patch`) with shared knobs—package excludes for java, elasticsearch, tomcat, nginx, agents, IMDSv2, dedupe by ASG, and we deliberately don’t overwrite the document default `TargetAmiName`. Logs go Filebeat → Logstash → indices; promo non-prod was cutting over ingress so Argo CD and the apps sit behind a private ALB whose access model was changing from “allow these CIDRs” to “allow this ALB security group.” Patch windows were already tight; critical prod Elasticsearch on pgdata was someone else’s execution window—we only prepped read-only SOP and backup AMI planning in the org.
+We’re on several AWS accounts in `ap-south-1`, with a mix of ASG-backed app tiers, central Logstash, non-prod EKS behind private ALBs, and Jenkins still in the middle of deploy paths. The week of 19–26 Sep was a patching wave plus finishing non-prod EKS ingress cutover, logging gaps on refreshed EC2, and the usual Jenkins/Argo/dashboard tickets. Storm-on-EKS had already been written up the week before; this one was the “everything else” shift.
 
-I went into the week thinking patching automation would carry the load and EKS would be a config merge. Reality was messier.
+I’ll focus on three threads that actually changed how I work: **patch automation that lied**, **Filebeat that looked like Logstash**, and **an ALB that went healthy only after we remembered how traffic really flows**.
 
-## Patch night ate Jenkins first
+---
 
-Two consecutive mid-week patch nights, we lost **three to four hours each** before patching could finish—not because SSM lied, but because **Jenkins wouldn’t stay green**. Frontend builds on Node24 agents, deploy paths, the usual CI cluster. Patching and “get Jenkins working” weren’t parallel tracks; they were **coupled**. Until builds passed, we couldn’t treat patch night as done, and we couldn’t confidently promote AMIs.
+## When the runbook finishes but the AMI doesn’t
 
-On the AMI side, assisted runs did produce output AMIs for many ASGs, but a large batch **faltered**: wrong params, retries, timeouts, and **duplicate AMIs** for the same intent. When automation output looked suspect, **manual** no-reboot or standard `create-image` from a known-good instance was simpler and more trustworthy. Automation still earned its keep for param gathering and ASG dedupe—but **validate the AMI before LT promotion** and watch for dupes in the account became the informal gate.
+We drove bulk patching through SSM documents — `Patching-ASG`, `NewRunbook`, `Ami-Patch` — with shared params: package excludes (java, elasticsearch, tomcat, nginx, agents, and friends), IMDSv2 metadata, no overwriting the document default `TargetAmiName`, dedupe by ASG. On paper that’s the right shape. In practice, a large batch of assisted runs **faltered**: wrong params, retries, timeouts, and **duplicate AMIs** for the same intent. AMIs *existed*, but I stopped trusting “green” in the SSM console as “safe to put in the launch template.”
 
-Failures weren’t abstract:
+My triage order became mechanical: does the AMI exist? Are there dupes for the same ASG intent? If we’re launching replacements, is it `InsufficientInstanceCapacity` on Graviton in one AZ — where our retry policy was **same subnet, same instance type**, no family hop? Is the worker even in SSM? When automation output looked suspect, **manual no-reboot / standard create-image from a known-good instance** was slower but honest. Automation was still worth it for param gathering and dedupe logic; **validate before LT promotion** was the gate we’d been skipping in spirit.
 
-- **Central Logstash ASG:** `InvalidAMIID.NotFound`. The LT/source AMI was deregistered while the instance still ran. Automation can’t `RunInstances` until you register a fresh AMI from the live node.
-- **Graviton in one AZ:** `InsufficientInstanceCapacity`. Our retry policy was same subnet, same instance type—no family hop—so some ASGs just waited for capacity.
-- **Promo ES master patch worker:** `NewRunbook` timed out on `verifySsmInstall` (20m). Cloud-init on **aarch64** tried a broken SSM agent install path (`Unsupported architecture aarch64`). The worker never registered in SSM; orphaned EC2 sat there until someone terminated it manually.
+Two failures stuck in my notes. On a central Logstash ASG we hit `InvalidAMIID.NotFound`: the launch template (or source AMI) was deregistered while the instance kept running. Automation can’t `RunInstances` until you register a fresh AMI from the live node — the running box is the source of truth, and when the running instance’s LT id/version had drifted from what the ASG thought it was using, **`SourceAmiId` had to come from the running instance AMI**, not a stale LT pointer.
 
-We also nailed down **source AMI logic**: when the running instance’s LT id/version has drifted from what the ASG thinks, use the **running instance AMI** as `SourceAmiId`, not the stale LT AMI.
+The other was uglier: `NewRunbook` timed out on an Elasticsearch master patch worker at `verifySsmInstall` after 20 minutes. Cloud-init on **aarch64** tried to install SSM via a path that blew up with `Unsupported architecture aarch64`. The worker never registered; we had an orphaned EC2 until someone terminated it manually. That’s a recurring risk I’m now paranoid about: **arm64 first-boot SSM install paths that don’t match the AMI family.**
 
-Supporting ops around that: no-reboot backup AMIs for static IP lists, `yum history` plus uptime CSVs across long instance lists, ASG vs STATIC exports, service-tag CSVs for planning, and sweeps for **lingering automation workers** nobody admitted to leaving on.
+With patch AMIs unreliable, we fell back to **in-place patching on ASG members** — `yum update`, reboot for kernel. First time through, I learned this is not “SSH and yum” in a vacuum.
 
-Honest outcome: patch AMIs largely exist, with **quality and duplication debt** on the automated path. I’d rather bake manually once than promote twice.
+I patched what I thought was a “safe” instance — termination protection in my head, “this one shouldn’t be replaced.” The ASG **still replaced** it. Long patch window or a bad reboot fails the health check; the group launches from the launch template. Those replacements are **not** clones of the old disk. Fresh boot, often **missing** agents, log paths, local tuning, manual fixes from three incidents ago. We turned one patching task into config drift repair on top of Jenkins already being on fire.
 
-## “Filebeat not sending” — harvesters before Logstash
+The pattern we landed on: **ASG Standby**. One member at a time — move to Standby (out of rotation, still running), patch, reboot, validate, back to InService. It doesn’t make the ASG magic, but it cuts the odds that traffic and health checks drive a replace cycle on the box you’re mid-flight on. You still coordinate desired capacity and which AZ you’re touching.
 
-After an ASG refresh, apps looked fine; the pipeline didn’t. My first instinct—check Logstash—was wrong, or at least **premature**.
+Then the kernel trap. `yum` installed a new kernel; we rebooted; `uname -r` still showed the **old** kernel. On RHEL-family AMIs that often means the boot loader default never moved — `grub2-set-default`, read `/etc/default/grub`, `grub2-mkconfig`, fix the right **BOOT** entry and cmdline, reboot **again**, verify. “Patched and rebooted” is not “running the new kernel.” First time through that was trial and error; I didn’t capture exact timings, but it burned a chunk of the window.
 
-Filebeat metrics told the story:
+Meanwhile Jenkins wasn’t a sidebar. On two consecutive patch nights (~mid-week), frontend build agents, deploy paths, and related CI failures ate **3–4 hours each night** before patching could finish. Patch work, ASG churn, config repair, and CI recovery were **coupled**. I’d call patch night done only after agents were healthy — lesson learned the expensive way.
 
-- `harvester.running: 0`
-- `registrar.states: 0`
+---
 
-That means **no files are being read**. Output to Logstash is irrelevant until harvesters run. Root cause was **wrong Filebeat config**: paths and inputs didn’t match where the app actually writes (generic template vs trees under `/paytm/logs/...`). We fixed it manually after debugging; metrics flipped once paths aligned.
+## `harvester.running: 0` and why I stopped blaming Logstash first
 
-We still had to rule out fleet issues:
+Separate thread, same week: “Filebeat not sending” after an ASG instance refresh. My instinct — and I’ve seen teams do this — is to stare at Logstash or OpenSearch. The metrics told a different story: **`harvester.running: 0`**, **`registrar.states: 0`**. Filebeat wasn’t reading files. Output to Logstash is irrelevant until harvesters run.
 
-- **750 dirs / 640 files** permission model if the filebeat user isn’t the app user.
-- Ansible **security group** gaps—filebeat role missing on some boxes, Promtail still on others—a separate fleet fix from the one-off config correction.
+We walked paths and permissions. Generic template inputs didn’t match where the app actually wrote logs — path mismatch. Directories at **750** and files at **640** bite when the filebeat user isn’t the app user. Fix was **manual config correction after debugging**; shipping came back when paths aligned. Not primarily a Logstash outage.
 
-Logstash did throw noise if you went looking: `InvalidFrameProtocolException` for beats protocol **10** and **13** on 5044, bytes matching HTTP CRLF. Plain `beats { port => 5044 }`, Filebeat `output.logstash` without SSL. That pattern screams **HTTP health checks on the Beats port** or random TCP that isn’t Beats—not “Logstash is down.” Fix on that side is **TCP health checks on the LB**, not HTTP on 5044.
+Logstash did throw noise if you went looking: `InvalidFrameProtocolException` for Beats protocol **10** and **13** on port 5044. Bytes looked like HTTP CRLF. Plain `beats { port => 5044 }` on Logstash; Filebeat `output.logstash` without SSL. Likely something doing **HTTP health checks on the Beats port** or random TCP to 5044 — fix on the LB side is **TCP health check**, not HTTP on 5044. I keep that diagnostic order now: **harvesters → paths/perms → then** protocol errors on the collector.
 
-Diagnostic order I’ll keep: **harvesters → paths/perms → then** protocol errors on Logstash (often LB HTTP on 5044).
+Fleet-wise, Ansible had security-group gaps — filebeat role missing on some boxes, Promtail still on others. That’s a separate fix from the one-off path correction, but it explains why refresh keeps biting the same org.
 
-On EKS, Alloy work in promo namespace was a different slice—split container logs so lines starting with `[TOMCAT]` go to `*-tomcat-logs`, everything else to `*-app-logs`. That’s routing hygiene, not the EC2 Filebeat miss.
+On EKS we were also splitting Alloy streams for application-namespace container logs — lines starting with `[TOMCAT]` to `*-tomcat-logs`, everything else to `*-app-logs`. Different layer, same theme: **the pipeline is only as good as the contract at the edge**.
 
-## EKS ingress: SG ALB without the traffic path
+---
 
-We completed the move from **CIDR-based private ALB** to **security-group inbound** (`alb-private-sg` values), dropped legacy CIDR ingress objects and `alb-private.yaml` from Argo valueFiles, and brought **Argo CD ingress** through the same cutover. It shipped live with **tcp/8080** from the ALB SG onto cluster and node SGs. No major outage was reported.
+## Private ALB by security group, and the 8080 rule we almost forgot
 
-The gotcha we already knew from older shared ALBs, and it bit again: custom ALB SG on ingress **without** the LBC-managed “traffic” SG → **all targets unhealthy / timeout** until you allow **tcp/8080 from the ALB SG onto cluster and node security groups**. Same pattern, new values file.
+Non-prod EKS ingress finished a move from **CIDR-based private ALB** to **security-group inbound** (`alb-private-sg` values). We removed legacy CIDR ingress objects and dropped `alb-private.yaml` from Argo valueFiles; Argo CD’s own ingress rode the same cutover. Shipped live with **tcp/8080** from the ALB security group onto cluster and node security groups. **No major outage** was reported — which still doesn’t mean it was free.
 
-Deploy model shifted too: stopped Argo Rollouts canary for promo apps; **RollingUpdate** Deployment with `maxUnavailable: 0` where we configured it.
+The gotcha we’d seen on older shared ALBs came back: custom ALB SG on the ingress **without** the LBC-managed “traffic” SG means targets sit **unhealthy / timeout** until you explicitly allow **tcp/8080 from the ALB SG onto cluster and node SGs**. Same pattern as before; easy to forget when the manifest “looks” right in Git.
 
-Housekeeping surfaced a listener mismatch: **pgvalidate** host `/prometheus` returned fixed **503** “Backend action does not exist” while promo-admin forwarded `/prometheus` to targets—missing or wrong listener rule for the pgvalidate metrics path. Not cutover-blocking for the SG migration, but embarrassing next to a green ingress story.
+Deploy model shifted too: stopped Argo Rollouts canary for GitOps-managed apps in favor of **RollingUpdate Deployment** with `maxUnavailable: 0` where we configured it — less ceremony, more predictable rollouts for that environment.
 
-Storm CI got aligned with other promo apps—Jenkins docker build plus topology deploy, one image tag deployable to multiple topologies with `sleep infinity` entrypoint and jar submit path separate. Infra pod timezone audit (UTC vs IST) and a readonly pass on why a gateway deployment scaled one pod at a time (HPA/PDB/scheduling) filled the gaps between merges.
+Smaller ALB puzzle on the same listener: one app’s host + `/prometheus` returned a fixed **503** “Backend action does not exist” while another app on the **same** ALB forwarded `/prometheus` fine. Missing or wrong listener rule for the first app’s metrics path — not a pod problem, a rule problem.
 
-## Side threads that didn’t own the week
+Storm CI got Jenkins docker build + topology deploy aligned with other container workloads; one image tag deployable to multiple topologies with entrypoint `sleep infinity` and jar submit on a separate path. Housekeeping that week included infra pod timezone audit (UTC vs IST) and readonly digging on why a gateway deployment scaled one pod at a time — HPA/PDB/scheduling, not glamorous but real.
 
-OpenSearch dedicated masters sitting at **~97–98% OS RAM** on ~16 GiB nodes with **~26–70% JVM heap** looked alarming until you remember fixed ~10 GiB heap—the OS “used” number isn’t heap pressure; data nodes looked healthier on OS % because of larger RAM and mapped buffers.
+---
 
-Prometheus: new EKS scrape job for promo non-prod, same Jenkins encrypt-secret pattern as other EKS jobs. Governance: script to copy EC2 instance governance tags to attached EBS volumes, dry-run then `--apply`, tested on one instance before fleet.
+## What I’d do again (and what I’m watching)
 
-UMP/dashboard firefighting: preprod Tomcat catalina errors; **Vault token lookup-self 403** on one box vs healthy peer (compare properties, refresh path from working host). Preprod nginx `Permission denied` on `ump-login/index.html`—filesystem perms on the static root, not upstream. Argo CD dev local accounts on ATS prod/stage. Mobile API intermittent curl with Android headers—Host vs CDN/Akamai hostname variants. Pinpoint ansible tag-only on Tomcat. All real tickets, none the spine of the week.
+This wasn’t a single root-cause postmortem; it was **platform whack-a-mole** with a few sharp takeaways tied to what we actually touched.
 
-## What I’d do again—and what I’d change
+**Patching:** Gate automation output — dupes, timeouts, arm64 SSM workers — before LT promotion. In-place on ASGs: **Standby → patch → reboot → verify `uname -r` and grub default → InService**. Expect LT replacements to **lack pet config**; don’t rely on disk state — Ansible, agents, or pull-based config has to be the default. Treat **Jenkins health as a dependency** on patch night, not a parallel ticket you’ll “get to.”
 
-**Patch AMI triage** is a checklist now: does the AMI exist? dupes in the account? capacity in subnet/AZ? SSM on the worker? If automation output is suspect, **manual bake** beats promoting twice. And **Jenkins green** before declaring patch night done—it’s a dependency, not sidebar work.
+**Logs:** If harvesters are zero, fix Filebeat before Logstash. HTTP on 5044 is a distraction with a real fix elsewhere.
 
-**Logs missing** starts at Filebeat harvesters, not Logstash tail -f.
+**EKS ingress:** SG-based private ALB is fine if you remember the **ALB SG → node/cluster SG on 8080** contract every time.
 
-**EKS private ALB SG migration** isn’t done when Argo syncs; it’s done when **ALB SG → pod:8080** is on cluster **and** node SGs.
+OpenSearch dedicated masters at ~97–98% OS RAM on ~16 GiB nodes with ~26–70% JVM heap looked alarming until we reconciled fixed ~10 GiB heap with OS “used” not equaling heap pressure — data nodes looked healthier on OS % because of larger RAM and mapped buffers. Critical Elasticsearch data-tier patch/reboot was **prep and read-only SOP** on our shift, not execution — I’m glad that stayed someone else’s careful window.
 
-The week didn’t give one flagship incident worth its own novel; it gave a stack of medium items that shared mechanics—wrong assumption about which layer was broken, automation output that needed human gates, and infra changes that look complete in Git before traffic actually flows. If I were writing this for the team, I’d probably title the internal handover “platform whack-a-mole” and keep one table of symptoms: harvester zero vs AMI not found vs target timeout. For a blog, the through-line is enough: **read the metric that can’t lie, validate artifacts before promotion, and treat CI health as part of the change window**—because that week, Jenkins owned as many hours as SSM did.
+Governance housekeeping: script to copy EC2 instance governance tags to attached EBS volumes (dry-run vs `--apply`), tested on one instance before fleet. Prometheus got a new EKS scrape job on non-prod with the same Jenkins encrypt-secret pattern as other EKS jobs.
+
+If I’d publish one table from the week for my own notebook, it would be symptoms vs layer: duplicate or missing patch AMI → **automation/LT**; fresh ASG instance missing agents/logs → **replace churn + config drift**; logs “not sending” with zero harvesters → **Filebeat paths/perms**; ALB targets timeout → **SG rules on 8080**, not the app. Nothing here is a new framework — it’s the kind of week where three boring layers stack up and the job is to **not mistake the symptom’s loudest service for the broken contract**.
+
+Next patch wave, I’m validating AMIs before promotion, running Standby on in-place work, and checking Jenkins agents before I call the night done. The rest can stay in tickets — but those three habits would have saved us half the hours we didn’t get back.
