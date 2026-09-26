@@ -1,49 +1,43 @@
-# LinkedIn draft (week roundup)
+# LinkedIn draft (from your template)
 
-**Option A — single post (recommended)**
-
----
-
-Another week in platform ops: fewer fireworks, more steady fixes—and a few lessons I’ll carry forward.
-
-**Patching at scale**  
-We pushed AMI updates across multiple AWS accounts using SSM runbooks—shared excludes, dedupe by ASG, careful source-AMI logic when launch templates drift. We got AMIs out, but a big batch of assisted runs tripped on params, timeouts, and duplicate images. When output looked wrong, **baking from a known-good instance and validating before launch-template promotion** beat trusting automation blindly. Patch nights also ran long because **Jenkins wasn’t green**—CI recovery and patching turned into one coupled stream, not two parallel tracks.
-
-**Logs that “stopped working”**  
-After an instance refresh, “Filebeat isn’t sending” often isn’t Logstash—it’s **harvesters at zero** because paths don’t match where the app actually writes. Fix the inputs and permissions first; only then chase downstream protocol noise (e.g. HTTP probes hitting a Beats port).
-
-**Promo non-prod EKS**  
-We finished moving private ingress from CIDR rules to **security-group–based ALB access**, simplified deploys (rolling updates instead of canary for these apps), and shipped **without a major outage**. The gotcha that bit us before: custom ALB security groups need **explicit pod/node paths** (e.g. TCP to app port from the ALB SG)—same pattern as the old shared load balancer.
-
-**Impact:** Ingress cutover live and stable; log shipping restored where configs were wrong; patch AMIs largely created with clearer gates on quality and dupes. Two patch nights cost an extra **3–4 hours each** on CI firefighting.
-
-Platform work is often a stack of medium items, not one hero incident. This week reinforced: **validate artifacts before promotion, treat CI as a patch-night dependency, and debug logs from the shipper inward.**
-
-#DevOps #PlatformEngineering #AWS #Kubernetes #Observability
+**Option A — single post (recommended length)**
 
 ---
 
-**Option B — shorter (if you prefer minimal)**
+Another week in platform ops: less one big incident, more a stack of things that only show up when you change the fleet.
+
+**Patching at scale** — We ran bulk AMI patching across multiple accounts with shared runbooks (excludes, dedupe by ASG, careful source-AMI logic). We got AMIs out the door, but automation-assisted runs also surfaced wrong params, timeouts, and duplicate images for the same intent. The honest lesson: automation is great for gathering params and deduping — **validate before you promote launch templates**. When output looked wrong, a known-good manual bake was faster and more trustworthy. When we patched in place on ASG members, we learned the hard way that a long patch or bad reboot can fail health checks and trigger **replacement instances that don’t carry pet config** (agents, log paths, local fixes). The pattern that stuck: **Standby → patch → reboot → verify (including kernel actually booted, not just installed) → back InService**. Bonus trap: `yum` installing a new kernel ≠ running it until grub default is right.
+
+**Logs after refresh** — “Filebeat not sending” wasn’t Logstash down. Metrics said it all: **zero harvesters** until paths matched where apps actually write. Fix the shipper first; protocol noise on the collector is a distant second.
+
+**Non-prod EKS** — Cut over private ingress from CIDR-based ALB rules to **security-group–driven** access, simplified GitOps values, and rolled deployments instead of canary for managed apps. Shipped without a major outage — after remembering the classic gotcha: custom ALB SG means you still have to allow **ALB → workload** on the right ports on cluster and node SGs.
+
+**Reality check** — Two patch nights ran long because **CI agents and builds** failed in parallel. Infra windows aren’t independent of Jenkins health.
+
+Grateful for tickets, runbooks, and teammates who debug grub at midnight. Platform work is often many medium wins — and one table of symptoms beats three heroic war stories.
+
+#DevOps #SRE #Kubernetes #AWS #Observability #PlatformEngineering
 
 ---
 
-Week in review: AMI patching across accounts, EKS ingress cutover (CIDR → SG-based private ALB), and “missing logs” that were really **wrong Filebeat paths** after refresh—not a Logstash outage.
-
-Wins: promo non-prod ingress **live without major outage**; shipping fixed after config correction; patch images produced at scale.
-
-Honest lesson: automation helped with params and dedupe, but **duplicate/suspect AMIs** meant manual bake + validate-before-LT was faster to trust. **Jenkins failures added 3–4 hours to two patch nights**—CI health is part of the change window, not a sidebar.
-
-Debug order I’ll reuse: harvesters → paths/perms → then downstream. ALB SG migrations: don’t forget **ALB SG → workload port** on cluster and node security groups.
-
-#PlatformEngineering #AWS #EKS
+**Option B — shorter (scroll-friendly)**
 
 ---
 
-**Sanitization notes (what I left out)**  
-- Account names, specific ASG/hostnames, internal tools (Argo job names, document IDs)  
-- Elasticsearch pgdata prep (handoff-only), Vault/nginx ticket detail, Storm prior-week story  
-- Redacted token/Prometheus specifics  
+Week in platform: patching wave, log pipeline gaps after ASG refresh, and non-prod EKS ingress cutover — no single flagship incident, lots of medium complexity.
 
-**Optional hook** (from your “remember”): if you want a slightly more narrative angle, open with: *“Not every week has one flagship incident—sometimes it’s three layers of whack-a-mole: patch workers, log shippers, and one missing ALB rule.”* Then use Option A’s three bullets.
+**Impact:** Patch AMIs largely created (with automation quality debt we’re gating before LT promotion). Non-prod **private ALB on security groups** is live with rolling deploys. Filebeat shipping restored after **config/path fixes**, not a Logstash outage.
 
-I can tune tone (more technical vs. more leadership), length, or first-person vs. team voice if you say which audience you’re targeting.
+**Hard parts:** Automation dupes and timeouts → validate AMIs, prefer manual bake when suspect. In-place ASG patching → **Standby** before reboot, verify **kernel is actually running**, expect replacements to miss pet config. Missing logs → **harvester metrics first**, then collector.
+
+**Coupling:** Jenkins agent/build issues added **3–4 hours** on two patch nights — CI health is part of the change window, not a sidebar.
+
+That’s the job some weeks: whack-a-mole across patch workers, log shippers, and ALB rules — with clearer playbooks on the other side.
+
+#SRE #AWS #EKS #Logging
+
+---
+
+**What I deliberately left out** (per your sanitize rules): account IDs, hostnames, internal job/token patterns, specific ASG/SSM document names, Elasticsearch maintenance execution, Storm topology detail (prior week), and ticket IDs.
+
+If you want a different tone (more “lesson learned” vs “week roundup”), or a **carousel outline** (one slide per layer: patch / logs / EKS), say which option to extend.
